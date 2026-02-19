@@ -1,6 +1,8 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
+import pluginVue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
 
 export default [
   {
@@ -11,7 +13,22 @@ export default [
 
   ...tseslint.configs.recommended,
 
-  prettierConfig,
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: tseslint.parser,
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      vue: pluginVue,
+    },
+    rules: {
+      ...pluginVue.configs['flat/essential'].rules,
+    },
+  },
 
   {
     files: ['**/*.ts', '**/*.vue'],
@@ -20,8 +37,9 @@ export default [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      // Autorise les any explicites mais avertit (a éliminer progressivement)
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+
+  prettierConfig,
 ];

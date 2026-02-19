@@ -4,14 +4,14 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "pnpm --parallel --filter './apps/*' run dev",
+    "dev": "pnpm --parallel --filter api --filter web run dev",
     "build": "pnpm --filter web build && pnpm --filter api build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm --parallel --filter './apps/*' run typecheck",
-    "test": "pnpm --parallel --filter './apps/*' run test",
+    "typecheck": "pnpm --parallel --filter api --filter web run typecheck",
+    "test": "pnpm --parallel --filter api --filter web run test",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v && docker compose up -d"
@@ -20,7 +20,9 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.8.0",
     "prettier": "^3.8.1",
-    "typescript-eslint": "^8.56.0"
+    "typescript-eslint": "^8.56.0",
+    "vue-eslint-parser": "^10.4.0"
   }
 }
