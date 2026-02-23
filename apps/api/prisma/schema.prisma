@@ -1,0 +1,62 @@
+// ─── Generator ────────────────────────────────
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+// ─── Datasource ───────────────────────────────
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────
+
+enum UserRole {
+  DEMO
+  USER
+
+  @@map("user_role")
+}
+
+// ─── Models ───────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sessions        Session[]
+  dashboardLayout DashboardLayout?
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  sessionId String   @unique @map("session_id")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("sessions")
+}
+
+model DashboardLayout {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  config    Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_layouts")
+}

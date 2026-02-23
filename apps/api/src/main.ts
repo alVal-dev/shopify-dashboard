@@ -14,6 +14,7 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new AllExceptionsFilter());
+  app.enableShutdownHooks();
 
   const configService = app.get(ConfigService);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
