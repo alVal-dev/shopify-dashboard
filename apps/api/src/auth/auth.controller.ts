@@ -16,8 +16,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -33,9 +35,11 @@ export class AuthController {
   ) {}
 
   @Post('demo')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login as demo user (creates session + HttpOnly cookie)' })
   @ApiOkResponse({ description: 'Session created, cookie set', type: AuthResponseDto })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded (10 req/min)' })
   @ApiInternalServerErrorResponse({ description: 'Demo user not found (seed missing)' })
   async loginDemo(@Res({ passthrough: true }) res: Response): Promise<AuthResponseDto> {
     const { sessionId, expiresAt, user } = await this.authService.loginDemo();
@@ -45,11 +49,13 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiOkResponse({ description: 'Session created, cookie set', type: AuthResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid request body' })
   @ApiUnauthorizedResponse({ description: 'Invalid email or password' })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded (10 req/min)' })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,

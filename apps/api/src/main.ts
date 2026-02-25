@@ -13,6 +13,14 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  // Trust proxy : nécessaire pour que le throttler identifie la vraie IP client
+  // derrière un reverse proxy (Render, Cloudflare, etc.)
+  const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
+  if (trustProxyHops > 0) {
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', trustProxyHops);
+  }
+  
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
   app.use(cookieParser());
