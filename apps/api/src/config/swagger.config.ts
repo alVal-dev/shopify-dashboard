@@ -3,16 +3,17 @@ import { DocumentBuilder } from '@nestjs/swagger';
 export function buildSwaggerConfig() {
   return new DocumentBuilder()
     .setTitle('Shopify Analytics Dashboard API')
-    .setDescription(
-      'API REST simulant des données Shopify pour un dashboard analytics. ' +
-        'Authentification par session cookie HttpOnly.',
+    .setDescription('API for the Shopify-like analytics dashboard demo.')
+    .setVersion('1.0')
+    // Auth cookie: sessionId
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'sessionId',
+        description: 'HttpOnly session cookie set by /api/auth/demo or /api/auth/login',
+      },
+      'sessionId',
     )
-    .setVersion('0.1')
-    .addCookieAuth('session_id', {
-      type: 'apiKey',
-      in: 'cookie',
-      name: 'session_id',
-      description: 'Session cookie set by POST /api/auth/login or POST /api/auth/demo',
-    })
     .build();
 }

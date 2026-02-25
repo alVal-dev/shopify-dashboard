@@ -1,0 +1,4 @@
+# compiled artifacts
+*.js
+*.d.ts
+*.js.map

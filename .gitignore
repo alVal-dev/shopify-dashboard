@@ -5,3 +5,9 @@ dist/
 !.env.example
 .DS_Store
 *.log
+
+# Build artifacts
+*.tsbuildinfo
+
+# Test files
+cookies.txt

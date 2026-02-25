@@ -2,9 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { buildSwaggerConfig } from './config/swagger.config';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -13,8 +15,17 @@ async function bootstrap() {
 
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,        // Supprime les propriétés non déclarées dans le DTO
+      forbidNonWhitelisted: true,  // Retourne 400 si propriétés inconnues
+      transform: true,        // Transforme le body en instance de la classe DTO
+    }),
+  );
 
   const configService = app.get(ConfigService);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
