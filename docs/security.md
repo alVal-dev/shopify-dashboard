@@ -11,7 +11,7 @@ données sensibles.
 - Sessions cookie **HttpOnly**, **Secure** (en prod), **SameSite=Lax**
 - SessionId opaque (crypto.randomUUID), pas de JWT
 - Expiration 24h, validation à chaque requête
-- Lazy delete des sessions expirées + CRON de nettoyage (tâche 4.14)
+- Lazy delete des sessions expirées + CRON de nettoyage 
 - Passwords hashés avec bcrypt (10 rounds)
 - Messages d'erreur génériques sur `/auth/login` (ne révèle pas si l'email existe)
 
