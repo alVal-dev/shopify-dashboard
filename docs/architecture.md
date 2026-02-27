@@ -2,233 +2,470 @@
 
 Dashboard analytics "Shopify-like" pour démo portfolio :
 
-- **SPA** Vue 3 avec widgets, thème, layout personnalisable
-- **API** NestJS avec auth, endpoints mock, persistance layout
+- **SPA** Vue 3 (Pinia + Router) avec widgets, thème et layout personnalisable
+- **API** NestJS avec auth, endpoints mock et persistance du layout
 - **Temps réel** via SSE
 - **PostgreSQL** avec migrations et seed idempotent
-- **Déploiement** single origin (backend sert le SPA)
+- **Déploiement** single origin (le backend sert le SPA)
 
-## Decisions
+---
 
-| Subject  | Decision                   | Rationale                                         |
-| -------- | -------------------------- | ------------------------------------------------- |
-| Monorepo | pnpm workspaces            | Simple, shared types, unified scripts             |
-| Backend  | NestJS 11                  | Modular, guards, Swagger, DI                      |
-| Frontend | Vue 3 + Pinia + Router     | Modern SPA, simple state                          |
-| UI       | PrimeVue                   | Fast components, theming                          |
-| Charts   | ECharts (vue-echarts)      | Flexible, professional                            |
-| Grid     | gridstack.js               | Mature drag/drop/resize                           |
-| Auth     | Session cookies (HttpOnly) | Simple, secure, same-origin friendly              |
-| Realtime | SSE                        | Unidirectional sufficient, simpler than WebSocket |
-| Database | PostgreSQL 16              | Standard, Supabase-friendly                       |
-| ORM      | Prisma v7                  | Migrations, types, driver adapter                 |
-| Seed     | Idempotent (upsert)        | Safe to re-run in public sandbox                  |
-| Deploy   | Backend serves SPA         | No CORS, cookies + SSE work seamlessly            |
+## Décisions
 
-See `docs/adr/` for detailed records.
+| Sujet       | Décision                           | Justification                                     |
+| ----------- | ---------------------------------- | ------------------------------------------------- |
+| Monorepo    | pnpm workspaces                    | Partage de types, scripts unifiés                 |
+| Backend     | NestJS 11                          | Modulaire, guards, Swagger, injection dépendances |
+| Frontend    | Vue 3 + Pinia + Router             | SPA moderne, état simple                          |
+| UI          | PrimeVue 4 + thème Aura (PrimeUIX) | Composants rapides, thème, dark mode              |
+| Graphiques  | ECharts (vue-echarts)              | Flexible, rendu professionnel                     |
+| Grille      | gridstack.js                       | Drag/drop/resize mature                           |
+| Auth        | Sessions via cookie HttpOnly       | Simple, sécurisé, compatible same-origin          |
+| Temps réel  | SSE                                | Unidirectionnel suffit, plus simple que WebSocket |
+| Database    | PostgreSQL 16                      | Standard, compatible Supabase                     |
+| ORM         | Prisma v7                          | Migrations, typage, adapter PG                    |
+| Seed        | Idempotent (upsert)                | Rejouable en sandbox publique                     |
+| Déploiement | Backend sert le SPA                | Pas de CORS, cookies + SSE simplifiés             |
 
-## System Overview
+Voir `docs/adr/` pour les détails (notamment ADR-002 et ADR-004).
+
+---
+
+## Vue d'ensemble du système
+
+### Production (single origin)
 
 ```mermaid
 flowchart LR
-  U[Browser] -->|HTTPS| APP[NestJS]
-  APP -->|Serve SPA| SPA[Vue 3]
-  SPA -->|REST /api/*| APP
-  SPA -->|SSE /api/sse/*| APP
-  APP -->|SQL| DB[(PostgreSQL)]
+  U[Navigateur] -->|HTTPS| N[NestJS]
+  N -->|Sert index.html + assets| U
+  U -->|REST /api/*| N
+  U -->|SSE /api/sse/*| N
+  N -->|SQL| DB[(PostgreSQL)]
 ```
 
-Single origin: SPA + API + SSE share the same host.
+**Principe clé :** SPA + API + SSE partagent le **même origin**, ce qui supprime la complexité CORS et simplifie l'auth par cookie.
 
-## Environments
-
-### Local (Development)
+### Développement local
 
 ```mermaid
 flowchart LR
-  B[Browser] -->|localhost:5173| V[Vite]
+  B[Navigateur] -->|localhost:5173| V[Vite]
   V -->|proxy /api| A[NestJS :3000]
   A -->|SQL| P[(Postgres :5432)]
 ```
 
-- Vite dev server on port 5173
-- Proxy redirects `/api` to NestJS on port 3000
+- Vite sur port 5173
+- Proxy `/api` vers NestJS sur port 3000
 - PostgreSQL via Docker Compose
 
-### Production
+---
 
-```mermaid
-flowchart LR
-  B[Browser] -->|HTTPS| A[NestJS]
-  A -->|static files| B
-  A -->|SQL| P[(Supabase PostgreSQL)]
+## Diagramme des composants
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              NAVIGATEUR                                     │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         Vue 3 SPA                                     │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │  │
+│  │  │   Router    │  │   Pinia     │  │  Composables│  │   Vues      │   │  │
+│  │  │   Guards    │  │   Stores    │  │  useTheme   │  │  Login      │   │  │
+│  │  │             │  │  - auth     │  │  useSSE     │  │  Dashboard  │   │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │  │
+│  │                              │                                         │  │
+│  │                    ┌─────────┴─────────┐                               │  │
+│  │                    │    Client API     │                               │  │
+│  │                    │  (axios + cookie) │                               │  │
+│  │                    └─────────┬─────────┘                               │  │
+│  └──────────────────────────────│────────────────────────────────────────┘  │
+└─────────────────────────────────│───────────────────────────────────────────┘
+                                  │ HTTPS (même origin)
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Backend NestJS                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    ServeStaticModule                                 │   │
+│  │                    (sert apps/web/dist)                              │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │  AuthModule  │  │ HealthModule │  │  MockModule  │  │  SSEModule   │   │
+│  │              │  │              │  │              │  │              │   │
+│  │ - login      │  │ - /health    │  │ - orders     │  │ - events     │   │
+│  │ - logout     │  │              │  │ - products   │  │ - heartbeat  │   │
+│  │ - me         │  │              │  │ - analytics  │  │              │   │
+│  │ - demo       │  │              │  │ - layout     │  │              │   │
+│  └──────┬───────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+│         │                                                                   │
+│  ┌──────┴───────┐  ┌──────────────┐  ┌──────────────┐                      │
+│  │SessionService│  │ThrottlerMod  │  │ScheduleModule│                      │
+│  │              │  │ 300/min glob │  │ CRON cleanup │                      │
+│  │ - create     │  │ 10/min auth  │  │              │                      │
+│  │ - validate   │  │              │  │              │                      │
+│  │ - delete     │  │              │  │              │                      │
+│  └──────┬───────┘  └──────────────┘  └──────────────┘                      │
+│         │                                                                   │
+│  ┌──────┴───────────────────────────────────────────────────────────────┐  │
+│  │                         PrismaService                                 │  │
+│  │                    (adapter: @prisma/adapter-pg)                      │  │
+│  └──────────────────────────────────┬───────────────────────────────────┘  │
+└─────────────────────────────────────│───────────────────────────────────────┘
+                                      │ SQL
+                                      ▼
+                        ┌─────────────────────────┐
+                        │     PostgreSQL 16       │
+                        │  ┌───────────────────┐  │
+                        │  │ users             │  │
+                        │  │ sessions          │  │
+                        │  │ dashboard_layouts │  │
+                        │  └───────────────────┘  │
+                        └─────────────────────────┘
 ```
 
-Single NestJS service serves:
+---
 
-- Static SPA files
-- REST API
-- SSE events
+## Flux principaux
 
-## Project Structure
+### Flux 1 : Authentification (session cookie HttpOnly)
+
+```
+┌────────┐         ┌────────┐         ┌────────┐         ┌────────┐
+│Navigat.│         │ NestJS │         │Sessions│         │  DB    │
+└───┬────┘         └───┬────┘         └───┬────┘         └───┬────┘
+    │                  │                  │                  │
+    │ POST /api/auth/login               │                  │
+    │ {email, password}│                  │                  │
+    │─────────────────►│                  │                  │
+    │                  │                  │                  │
+    │                  │ recherche user par email           │
+    │                  │─────────────────────────────────────►
+    │                  │                  │                  │
+    │                  │◄─────────────────────────────────────
+    │                  │ user + mot de passe hashé          │
+    │                  │                  │                  │
+    │                  │ bcrypt.compare   │                  │
+    │                  │                  │                  │
+    │                  │ createSession    │                  │
+    │                  │─────────────────►│                  │
+    │                  │                  │ INSERT session   │
+    │                  │                  │─────────────────►│
+    │                  │                  │◄─────────────────│
+    │                  │◄─────────────────│                  │
+    │                  │ sessionId        │                  │
+    │                  │                  │                  │
+    │◄─────────────────│                  │                  │
+    │ Set-Cookie: sessionId (HttpOnly)   │                  │
+    │ {data: {id, email, role}}          │                  │
+    │                  │                  │                  │
+```
+
+**Notes :**
+
+- Pas de JWT : le cookie contient un **identifiant opaque** uniquement
+- L'expiration est validée côté serveur à chaque requête
+- Si expirée : suppression "lazy delete" et retour 401
+
+### Flux 2 : Requête authentifiée
+
+```
+┌────────┐         ┌────────┐         ┌────────┐         ┌────────┐
+│Navigat.│         │ NestJS │         │Sessions│         │  DB    │
+└───┬────┘         └───┬────┘         └───┬────┘         └───┬────┘
+    │                  │                  │                  │
+    │ GET /api/orders  │                  │                  │
+    │ Cookie: sessionId│                  │                  │
+    │─────────────────►│                  │                  │
+    │                  │                  │                  │
+    │                  │ validateSession  │                  │
+    │                  │─────────────────►│                  │
+    │                  │                  │ SELECT session   │
+    │                  │                  │─────────────────►│
+    │                  │                  │◄─────────────────│
+    │                  │                  │                  │
+    │                  │                  │ vérif expiresAt  │
+    │                  │                  │                  │
+    │                  │◄─────────────────│                  │
+    │                  │ user             │                  │
+    │                  │                  │                  │
+    │                  │ [Logique controller]               │
+    │                  │                  │                  │
+    │◄─────────────────│                  │                  │
+    │ 200 {data: [...]}│                  │                  │
+    │                  │                  │                  │
+```
+
+### Flux 3 : Routage SPA (deep links + refresh)
+
+```
+┌────────┐         ┌────────┐         ┌────────┐
+│Navigat.│         │ NestJS │         │  Vue   │
+└───┬────┘         └───┬────┘         └───┬────┘
+    │                  │                  │
+    │ GET /dashboard   │                  │
+    │ (lien direct ou F5)                │
+    │─────────────────►│                  │
+    │                  │                  │
+    │                  │ ServeStaticModule
+    │                  │ (fallback SPA)   │
+    │                  │                  │
+    │◄─────────────────│                  │
+    │ index.html       │                  │
+    │                  │                  │
+    │ GET /assets/index-xxx.js           │
+    │─────────────────►│                  │
+    │◄─────────────────│                  │
+    │ (en cache immutable)               │
+    │                  │                  │
+    │ ─────────────────────────────────► │
+    │                  │   Vue démarre    │
+    │                  │   Router guard   │
+    │                  │   checkAuth()    │
+    │                  │                  │
+    │ GET /api/auth/me │                  │
+    │─────────────────►│                  │
+    │◄─────────────────│                  │
+    │ {data: user} ou 401                │
+    │                  │                  │
+    │ ◄───────────────────────────────── │
+    │                  │  Affiche la vue  │
+    │                  │  (Login ou Dashboard)
+    │                  │                  │
+```
+
+**Pourquoi c'est important :** Sans fallback `index.html`, un refresh sur `/dashboard` casserait (404). Le backend sert `index.html`, puis Vue Router gère la route côté client.
+
+### Flux 4 : SSE temps réel
+
+```
+┌────────┐         ┌────────┐         ┌────────┐
+│Navigat.│         │ NestJS │         │Scheduler│
+└───┬────┘         └───┬────┘         └───┬────┘
+    │                  │                  │
+    │ GET /api/sse/events                │
+    │ Cookie: sessionId│                  │
+    │─────────────────►│                  │
+    │                  │                  │
+    │ ◄──── Connexion SSE ouverte ────   │
+    │                  │                  │
+    │                  │◄─────────────────│
+    │                  │ émet order.created
+    │◄─────────────────│                  │
+    │ event: order.created               │
+    │ data: {order...} │                  │
+    │                  │                  │
+    │                  │◄─────────────────│
+    │                  │ émet kpi.updated │
+    │◄─────────────────│                  │
+    │ event: kpi.updated                 │
+    │ data: {kpis...}  │                  │
+    │                  │                  │
+    │                  │◄─────────────────│
+    │                  │ émet heartbeat   │
+    │◄─────────────────│                  │
+    │ event: heartbeat │                  │
+    │                  │                  │
+```
+
+---
+
+## Structure du projet
 
 ```
 shopify-dashboard/
 ├── apps/
-│   ├── api/                      # NestJS backend
+│   ├── api/                      # Backend NestJS
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma
 │   │   │   ├── migrations/
 │   │   │   └── seed.ts
 │   │   ├── src/
-│   │   │   ├── auth/
-│   │   │   ├── common/
-│   │   │   ├── config/
-│   │   │   ├── health/
-│   │   │   ├── prisma/
+│   │   │   ├── auth/             # Module auth
+│   │   │   │   ├── auth.controller.ts
+│   │   │   │   ├── auth.service.ts
+│   │   │   │   ├── sessions.service.ts
+│   │   │   │   └── session-cleanup.service.ts
+│   │   │   ├── common/           # Filtres, guards
+│   │   │   ├── config/           # Config Swagger
+│   │   │   ├── health/           # Health check
+│   │   │   ├── prisma/           # PrismaService
+│   │   │   ├── generated/        # Client Prisma
+│   │   │   ├── app.module.ts
 │   │   │   └── main.ts
 │   │   └── prisma.config.ts
 │   │
-│   └── web/                      # Vue 3 frontend
+│   └── web/                      # Frontend Vue 3
+│       ├── index.html
 │       └── src/
-│           ├── components/
-│           ├── composables/
-│           ├── router/
-│           ├── services/
-│           ├── stores/
-│           └── views/
+│           ├── api/              # Client Axios
+│           ├── assets/           # Styles
+│           ├── composables/      # useTheme
+│           ├── router/           # Vue Router + guards
+│           ├── stores/           # Pinia (auth)
+│           └── views/            # Login, Dashboard
 │
 ├── shared/
-│   └── types/                    # Shared TypeScript types
+│   └── types/                    # Types TypeScript partagés
 │
 └── docs/
+    ├── architecture.md           # Ce fichier
+    ├── api.md                    # Référence API
+    ├── security.md               # Documentation sécurité
+    ├── data-model.md             # Schéma base de données
+    └── adr/                      # Architecture Decision Records
 ```
 
-## Prisma v7 Configuration
+---
 
-| Aspect        | Approach                                 |
-| ------------- | ---------------------------------------- |
-| Provider      | `prisma-client` (not `prisma-client-js`) |
-| Connection    | Via adapter `@prisma/adapter-pg`         |
-| Module format | `moduleFormat = "cjs"`                   |
-| PrismaService | Composition pattern (not inheritance)    |
+## Configuration Prisma v7
 
-NestJS does not support ESM natively. Configured as CommonJS.
+| Aspect        | Approche                                   |
+| ------------- | ------------------------------------------ |
+| Provider      | `prisma-client` (pas `prisma-client-js`)   |
+| Connexion     | Via adapter `@prisma/adapter-pg`           |
+| Format module | `moduleFormat = "cjs"` (compatible NestJS) |
+| PrismaService | Pattern composition (`prisma.client`)      |
 
-## Authentication
+---
 
-Session-based auth with HttpOnly cookies. No JWT.
+## Authentification
 
-```mermaid
-sequenceDiagram
-  participant B as Browser
-  participant A as NestJS
-  participant D as PostgreSQL
-
-  B->>A: POST /api/auth/login
-  A->>D: find user + verify password
-  A->>D: create session
-  A-->>B: Set-Cookie: session_id (HttpOnly)
-
-  B->>A: GET /api/orders (with cookie)
-  A->>D: validate session
-  A-->>B: 200 + data
-```
+Auth basée sur sessions avec cookies HttpOnly. Pas de JWT. Voir [ADR-002](adr/002-session-id-sans-jwt.md).
 
 ### Endpoints
 
-| Method | Path             | Description              |
-| ------ | ---------------- | ------------------------ |
-| POST   | /api/auth/demo   | Demo login (no password) |
-| POST   | /api/auth/login  | Email/password login     |
-| GET    | /api/auth/me     | Current user             |
-| POST   | /api/auth/logout | Destroy session          |
+| Méthode | Chemin           | Auth      | Rate Limit  | Description                |
+| ------- | ---------------- | --------- | ----------- | -------------------------- |
+| POST    | /api/auth/demo   | Aucune    | 10 req/min  | Login démo (sans password) |
+| POST    | /api/auth/login  | Aucune    | 10 req/min  | Login email/password       |
+| GET     | /api/auth/me     | Requise   | 300 req/min | Utilisateur courant        |
+| POST    | /api/auth/logout | Optionnel | 300 req/min | Détruit la session         |
 
-## Realtime (SSE)
+### Attributs du cookie
 
-Server-Sent Events for unidirectional updates.
+| Attribut | Valeur              |
+| -------- | ------------------- |
+| Nom      | `sessionId`         |
+| HttpOnly | `true`              |
+| Secure   | `true` (production) |
+| SameSite | `Lax`               |
+| Path     | `/`                 |
+| Expires  | 24 heures           |
 
-```mermaid
-sequenceDiagram
-  participant B as Browser
-  participant A as NestJS
+Documentation complète : `docs/api.md`
 
-  B->>A: GET /api/sse/events
-  A-->>B: event: heartbeat
-  A-->>B: event: order.created
-  A-->>B: event: kpi.updated
-```
+---
 
-### Events
+## Temps réel (SSE)
 
-| Event         | Description             |
-| ------------- | ----------------------- |
-| order.created | New order (every 5-15s) |
-| kpi.updated   | KPI refresh (every 30s) |
-| stock.alert   | Low stock warning       |
-| heartbeat     | Keep-alive (every 30s)  |
+Server-Sent Events pour les mises à jour unidirectionnelles.
 
-### Limits
+### Événements
 
-- Max 5 SSE connections per IP
-- Returns 204 if limit reached (prevents EventSource retry loop)
+| Événement     | Intervalle   | Description           |
+| ------------- | ------------ | --------------------- |
+| order.created | 5-15s        | Nouvelle commande     |
+| kpi.updated   | 30s          | Rafraîchissement KPIs |
+| stock.alert   | 45-90s (30%) | Alerte stock bas      |
+| heartbeat     | 30s          | Keep-alive            |
 
-## Dashboard Layout
+### Limites
 
-Persisted per user in `dashboard_layouts.config` (JSONB).
+- Maximum 5 connexions SSE par IP
+- Retourne 204 si limite atteinte (évite la boucle de retry EventSource)
 
-| Method | Path                  | Description                |
-| ------ | --------------------- | -------------------------- |
-| GET    | /api/dashboard/layout | Get user layout            |
-| PUT    | /api/dashboard/layout | Save layout (rate limited) |
+---
 
-Frontend saves with 2s debounce.
+## Service des fichiers statiques
 
-## Export
+Voir [ADR-004](adr/004-backend-sert-frontend.md).
 
-| Method | Path              | Description                                |
-| ------ | ----------------- | ------------------------------------------ |
-| GET    | /api/export/:type | Download CSV (orders, products, customers) |
+### Headers de cache
 
-UTF-8 with BOM for Excel compatibility.
+| Type de fichier | Cache-Control                         |
+| --------------- | ------------------------------------- |
+| `index.html`    | `no-cache`                            |
+| `/assets/*`     | `public, max-age=31536000, immutable` |
+| Autres          | `public, max-age=3600`                |
 
-## Security
+### Fallback SPA
 
-See `docs/security.md` for details.
+Toutes les routes non-API retournent `index.html`. Vue Router gère le routing côté client.
 
-| Measure        | Implementation                       |
-| -------------- | ------------------------------------ |
-| Cookies        | HttpOnly, Secure, SameSite=Lax       |
-| Sessions       | 24h TTL + CRON cleanup               |
-| Rate limiting  | 100 req/min/IP global                |
-| Layout save    | 5 saves/min/session                  |
-| SSE            | 5 connections/IP max                 |
-| Validation     | class-validator on all inputs        |
-| Error messages | Generic auth errors (no enumeration) |
+---
 
-## Observability
+## Sécurité
 
-| Aspect  | Implementation               |
-| ------- | ---------------------------- |
-| Logging | nestjs-pino, structured JSON |
-| Health  | GET /api/health              |
-| Uptime  | External ping (UptimeRobot)  |
+Voir `docs/security.md` pour les détails.
+
+| Mesure          | Implémentation                          |
+| --------------- | --------------------------------------- |
+| Cookies         | HttpOnly, Secure, SameSite=Lax          |
+| Sessions        | TTL 24h, lazy delete, CRON cleanup      |
+| Rate limiting   | 300 req/min/IP global                   |
+| Endpoints auth  | 10 req/min/IP                           |
+| Trust proxy     | Configurable via `TRUST_PROXY_HOPS`     |
+| Validation      | class-validator + ValidationPipe        |
+| Messages erreur | Génériques sur login (anti-énumération) |
+
+---
+
+## Observabilité
+
+| Aspect | Implémentation              |
+| ------ | --------------------------- |
+| Logs   | nestjs-pino, JSON structuré |
+| Health | GET /api/health             |
+| Uptime | Ping externe (UptimeRobot)  |
+
+---
 
 ## Configuration
 
-| Variable           | Description                  |
-| ------------------ | ---------------------------- |
-| DATABASE_URL       | PostgreSQL connection string |
-| NODE_ENV           | development / production     |
-| PORT               | Server port (default 3000)   |
-| DEMO_EMAIL         | Demo account email           |
-| JOHN_EMAIL         | Test user email              |
-| JOHN_PASSWORD      | Test user password           |
-| BCRYPT_SALT_ROUNDS | Hash rounds (default 10)     |
+| Variable         | Description                 | Défaut      |
+| ---------------- | --------------------------- | ----------- |
+| DATABASE_URL     | Chaîne connexion PostgreSQL | (requis)    |
+| NODE_ENV         | development / production    | development |
+| PORT             | Port du serveur             | 3000        |
+| TRUST_PROXY_HOPS | Nombre de proxies inverses  | 0           |
 
-## References
+---
 
-- Data model: `docs/data-model.md`
-- Security: `docs/security.md`
-- ADRs: `docs/adr/`
-- Spikes: `docs/spikes/`
+## Build et déploiement
+
+### Scripts
+
+```bash
+pnpm build        # Build web, puis api
+pnpm start        # Démarre le serveur production
+pnpm dev          # Démarre les deux en mode dev
+```
+
+### Ordre de build
+
+1. `pnpm build:web` — Vite génère `apps/web/dist`
+2. `pnpm build:api` — NestJS compile vers `apps/api/dist`
+
+L'ordre est important : ServeStaticModule a besoin que `apps/web/dist` existe.
+
+### Démarrage production
+
+```bash
+node apps/api/dist/main.js
+```
+
+Un seul processus sert SPA + API + SSE.
+
+---
+
+## Références
+
+- Modèle de données : `docs/data-model.md`
+- Référence API : `docs/api.md`
+- Sécurité : `docs/security.md`
+- ADRs : `docs/adr/`
+- Spikes : `docs/spikes/`
+
+```
+
+```
