@@ -7,14 +7,16 @@
 ## Objectif
 
 Valider que **Server-Sent Events (SSE)** est une solution viable pour le temps réel du dashboard :
+
 - endpoint SSE côté NestJS
-- consommation côté Vue 3 via `EventSource` 
+- consommation côté Vue 3 via `EventSource`
 - réception continue de messages
 - comportement de déconnexion / reconnexion observé en dev
 
 ## Risque identifié
 
 SSE repose sur une connexion HTTP longue durée. Les risques principaux :
+
 - **Reconnexion non fiable** : connexion reste "ouverte" mais silencieuse (proxy / réseau)
 - **Fuite de ressources côté serveur** : stream non arrêté quand le client ferme la connexion
 - **Comportement dev ≠ prod** : proxy Vite, buffering, cold starts PaaS
@@ -37,13 +39,14 @@ Il est possible de streamer des événements via NestJS (`@Sse()` + RxJS) et de 
 
 ## Référence
 
-- Commit spike : `chore: sse spike - go confirmed` 
+- Commit spike : `chore: sse spike - go confirmed`
 
 ## Résultat
 
 **GO** : SSE est viable pour le temps réel du dashboard.
 
 Décision pour l'implémentation finale (prod) :
+
 - Heartbeat toutes les 30 secondes pour garder la connexion vivante
 - Watchdog côté client (silence → recréer connexion)
 - Backoff contrôlé si reconnexion échoue en boucle
@@ -51,13 +54,13 @@ Décision pour l'implémentation finale (prod) :
 
 ## Tests réalisés
 
-| Scénario | Résultat |
-|---|---|
-| Connexion initiale au flux SSE | ✅ OK |
-| Réception des messages toutes les 2 secondes | ✅ OK |
-| Mise à jour d’un état de connexion (connected/…) | ✅ OK |
+| Scénario                                                  | Résultat                  |
+| --------------------------------------------------------- | ------------------------- |
+| Connexion initiale au flux SSE                            | ✅ OK                     |
+| Réception des messages toutes les 2 secondes              | ✅ OK                     |
+| Mise à jour d’un état de connexion (connected/…)          | ✅ OK                     |
 | Reconnexion après coupure backend en dev (via proxy Vite) | ⚠️ Comportement inattendu |
-| Flux SSE fonctionnel sur port backend direct (sans proxy) | ✅ OK |
+| Flux SSE fonctionnel sur port backend direct (sans proxy) | ✅ OK                     |
 
 ## Findings et points d'attention
 

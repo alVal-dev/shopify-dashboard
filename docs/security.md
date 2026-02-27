@@ -11,7 +11,7 @@ données sensibles.
 - Sessions cookie **HttpOnly**, **Secure** (en prod), **SameSite=Lax**
 - SessionId opaque (crypto.randomUUID), pas de JWT
 - Expiration 24h, validation à chaque requête
-- Lazy delete des sessions expirées + CRON de nettoyage 
+- Lazy delete des sessions expirées + CRON de nettoyage
 - Passwords hashés avec bcrypt (10 rounds)
 - Messages d'erreur génériques sur `/auth/login` (ne révèle pas si l'email existe)
 
@@ -19,11 +19,11 @@ Voir [ADR-002 : Session ID sans JWT](adr/002-session-id-sans-jwt.md)
 
 ## Rate Limiting
 
-| Cible | Limite | Raison |
-|-------|--------|--------|
-| Toutes les routes | 300 req/min/IP | Filet de sécurité anti-flood |
-| `POST /auth/login` | 10 req/min/IP | Anti brute-force |
-| `POST /auth/demo` | 10 req/min/IP | Anti spam de sessions |
+| Cible              | Limite         | Raison                       |
+| ------------------ | -------------- | ---------------------------- |
+| Toutes les routes  | 300 req/min/IP | Filet de sécurité anti-flood |
+| `POST /auth/login` | 10 req/min/IP  | Anti brute-force             |
+| `POST /auth/demo`  | 10 req/min/IP  | Anti spam de sessions        |
 
 Implémentation : `@nestjs/throttler` avec guard global (`APP_GUARD`) et
 overrides per-route via `@Throttle()`.
@@ -35,11 +35,11 @@ store Redis.
 
 Configurable via la variable d'environnement `TRUST_PROXY_HOPS` :
 
-| Environnement | Valeur | Raison |
-|----------------|--------|--------|
-| Local (dev) | `0` | Pas de proxy |
-| Render | `1` | 1 reverse proxy |
-| Cloudflare + Render | `2` | 2 hops |
+| Environnement       | Valeur | Raison          |
+| ------------------- | ------ | --------------- |
+| Local (dev)         | `0`    | Pas de proxy    |
+| Render              | `1`    | 1 reverse proxy |
+| Cloudflare + Render | `2`    | 2 hops          |
 
 Le défaut est `0` (ne trust personne). **Ne jamais utiliser `trust proxy: true`**
 qui accepte n'importe quel header `X-Forwarded-For` (spoofable).
@@ -56,6 +56,7 @@ combinées.
 ## En dehors du scope
 
 Ce projet étant un bac à sable :
+
 - Pas de HTTPS forcé (géré par Render)
 - Pas de CORS (même origin : le backend sert le SPA)
 - Pas de CSP headers (pas de données utilisateur réelles)
@@ -65,10 +66,10 @@ Ce projet étant un bac à sable :
 
 Deux mécanismes complémentaires :
 
-| Mécanisme | Déclencheur | Fiabilité |
-|-----------|-------------|-----------|
-| **Lazy delete** | Chaque appel à `validateSession()` | Garanti — c'est la vraie protection |
-| **CRON horaire** | `@nestjs/schedule`, `EVERY_HOUR` | Best-effort — le PaaS peut dormir |
+| Mécanisme        | Déclencheur                        | Fiabilité                           |
+| ---------------- | ---------------------------------- | ----------------------------------- |
+| **Lazy delete**  | Chaque appel à `validateSession()` | Garanti — c'est la vraie protection |
+| **CRON horaire** | `@nestjs/schedule`, `EVERY_HOUR`   | Best-effort — le PaaS peut dormir   |
 
 Le CRON empêche l'accumulation de lignes mortes en base. Il n'est pas
 critique pour la sécurité : une session expirée est déjà rejetée par

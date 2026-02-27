@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBadRequestResponse,
@@ -88,7 +79,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout (deletes session + clears cookie)' })
   @ApiCookieAuth('sessionId')
   @ApiOkResponse({ description: 'Logged out', type: LogoutResponseDto })
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<LogoutResponseDto> {
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LogoutResponseDto> {
     const sessionId = (req as any).cookies?.[SESSION_COOKIE_NAME] as string | undefined;
 
     await this.authService.logout(sessionId);

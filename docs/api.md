@@ -1,4 +1,3 @@
-
 # API — Shopify Analytics Dashboard
 
 ## Vue d’ensemble
@@ -6,17 +5,18 @@
 L’API REST est servie par NestJS sous le préfixe `/api`. Les réponses sont en JSON.
 
 **Base URL**
+
 - Développement : `http://localhost:3000/api`
 - Production : `https://<app>.onrender.com/api`
 
 **Swagger (dev)** : `http://localhost:3000/docs`
-
 
 ---
 
 ## Conventions
 
 ### Format des réponses
+
 La plupart des endpoints renvoient un wrapper :
 
 ```json
@@ -26,6 +26,7 @@ La plupart des endpoints renvoient un wrapper :
 ```
 
 ### Gestion des erreurs
+
 Les erreurs sont normalisées via le filtre global `AllExceptionsFilter` (format `ApiErrorResponse`).
 
 Exemple (401) :
@@ -55,6 +56,7 @@ Erreurs de validation (400) :
 L’API utilise des **sessions serveur** via cookie HttpOnly. Voir [ADR 002](adr/002-session-id-sans-jwt.md) pour la décision et les justifications.
 
 ### Mécanisme
+
 1. Le client appelle `POST /api/auth/login` ou `POST /api/auth/demo`
 2. Le serveur crée une session en DB et pose un cookie `sessionId`
 3. Les requêtes suivantes incluent automatiquement le cookie (client Axios : `withCredentials: true`)
@@ -62,16 +64,17 @@ L’API utilise des **sessions serveur** via cookie HttpOnly. Voir [ADR 002](adr
 
 ### Cookie `sessionId`
 
-| Attribut | Valeur |
-|----------|--------|
-| Nom | `sessionId` |
-| HttpOnly | `true` |
-| Secure | `true` en production (HTTPS) |
-| SameSite | `Lax` |
-| Path | `/` |
-| Expiration | 24 heures |
+| Attribut   | Valeur                       |
+| ---------- | ---------------------------- |
+| Nom        | `sessionId`                  |
+| HttpOnly   | `true`                       |
+| Secure     | `true` en production (HTTPS) |
+| SameSite   | `Lax`                        |
+| Path       | `/`                          |
+| Expiration | 24 heures                    |
 
 ### Client-side (frontend)
+
 ```ts
 import axios from 'axios';
 
@@ -87,11 +90,11 @@ const api = axios.create({
 
 L’API utilise `@nestjs/throttler`.
 
-| Scope | Limite | Cible |
-|-------|--------|-------|
-| Global | 300 req/min/IP | Toutes les routes |
-| Auth login | 10 req/min/IP | `POST /api/auth/login` |
-| Auth demo | 10 req/min/IP | `POST /api/auth/demo` |
+| Scope      | Limite         | Cible                  |
+| ---------- | -------------- | ---------------------- |
+| Global     | 300 req/min/IP | Toutes les routes      |
+| Auth login | 10 req/min/IP  | `POST /api/auth/login` |
+| Auth demo  | 10 req/min/IP  | `POST /api/auth/demo`  |
 
 Réponse 429 (exemple) :
 
@@ -111,6 +114,7 @@ Réponse 429 (exemple) :
 ### Health Check
 
 #### `GET /api/health`
+
 Vérifie que l’API est opérationnelle.
 
 - **Authentification** : non requise
@@ -130,6 +134,7 @@ Réponse 200 :
 ## Auth
 
 ### `POST /api/auth/demo`
+
 Crée une session pour l’utilisateur démo. Permet d’explorer l’application sans credentials.
 
 - **Authentification** : non requise
@@ -156,14 +161,15 @@ Set-Cookie: sessionId=<uuid>; HttpOnly; SameSite=Lax; Path=/; Expires=<date>
 
 Erreurs possibles :
 
-| Status | Description |
-|--------|-------------|
-| 429 | Too Many Requests (rate limit dépassé) |
-| 500 | Demo user not found (seed manquant) |
+| Status | Description                            |
+| ------ | -------------------------------------- |
+| 429    | Too Many Requests (rate limit dépassé) |
+| 500    | Demo user not found (seed manquant)    |
 
 ---
 
 ### `POST /api/auth/login`
+
 Authentifie un utilisateur avec email et mot de passe. Crée une session et pose le cookie.
 
 - **Authentification** : non requise
@@ -180,9 +186,9 @@ Body :
 
 Validation :
 
-| Champ | Type | Validation |
-|-------|------|------------|
-| email | string | format email |
+| Champ    | Type   | Validation       |
+| -------- | ------ | ---------------- |
+| email    | string | format email     |
 | password | string | min 8 caractères |
 
 Réponse 200 :
@@ -199,17 +205,18 @@ Réponse 200 :
 
 Erreurs possibles :
 
-| Status | Description |
-|--------|-------------|
-| 400 | Bad Request (validation échouée) |
-| 401 | Invalid email or password (message générique) |
-| 429 | Too Many Requests |
+| Status | Description                                   |
+| ------ | --------------------------------------------- |
+| 400    | Bad Request (validation échouée)              |
+| 401    | Invalid email or password (message générique) |
+| 429    | Too Many Requests                             |
 
 > Note sécurité : le message 401 est volontairement générique pour ne pas révéler si l’email existe.
 
 ---
 
 ### `GET /api/auth/me`
+
 Retourne l’utilisateur connecté à partir du cookie `sessionId`.
 
 - **Authentification** : requise (cookie `sessionId`)
@@ -230,15 +237,16 @@ Réponse 200 :
 
 Erreurs possibles :
 
-| Status | Description |
-|--------|-------------|
-| 401 | Not authenticated (cookie absent, session invalide ou expirée) |
+| Status | Description                                                    |
+| ------ | -------------------------------------------------------------- |
+| 401    | Not authenticated (cookie absent, session invalide ou expirée) |
 
 > Côté frontend, cet endpoint est appelé au boot via `checkAuth()` avec une option `silent401` (pour éviter une redirection automatique lors de l’initialisation).
 
 ---
 
 ### `POST /api/auth/logout`
+
 Supprime la session en cours et efface le cookie.
 
 - **Authentification** : optionnelle (best-effort si cookie présent)
@@ -270,6 +278,7 @@ Set-Cookie: sessionId=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 Les types TypeScript partagés sont dans `shared/types/` et utilisés par le backend et le frontend.
 
 ### `AuthUser`
+
 ```ts
 interface AuthUser {
   id: string;
@@ -279,6 +288,7 @@ interface AuthUser {
 ```
 
 ### `ApiResponse<T>`
+
 ```ts
 interface ApiResponse<T> {
   data: T;
@@ -286,6 +296,7 @@ interface ApiResponse<T> {
 ```
 
 ### `ApiErrorResponse`
+
 ```ts
 interface ApiErrorResponse {
   statusCode: number;
@@ -300,6 +311,7 @@ interface ApiErrorResponse {
 ## Test avec cURL
 
 ### Login démo
+
 ```bash
 curl -X POST http://localhost:3000/api/auth/demo \
   -c cookies.txt \
@@ -307,6 +319,7 @@ curl -X POST http://localhost:3000/api/auth/demo \
 ```
 
 ### Login credentials
+
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -316,12 +329,14 @@ curl -X POST http://localhost:3000/api/auth/login \
 ```
 
 ### Get current user
+
 ```bash
 curl http://localhost:3000/api/auth/me \
   -b cookies.txt
 ```
 
 ### Logout
+
 ```bash
 curl -X POST http://localhost:3000/api/auth/logout \
   -b cookies.txt \
@@ -329,6 +344,7 @@ curl -X POST http://localhost:3000/api/auth/logout \
 ```
 
 ### Test rate limiting (auth demo)
+
 ```bash
 # 11 requêtes rapides sur demo -> la 11ème retourne 429
 for i in $(seq 1 11); do

@@ -1,6 +1,7 @@
 # Architecture — Shopify Analytics Dashboard
 
 Dashboard analytics "Shopify-like" pour démo portfolio :
+
 - **SPA** Vue 3 avec widgets, thème, layout personnalisable
 - **API** NestJS avec auth, endpoints mock, persistance layout
 - **Temps réel** via SSE
@@ -9,20 +10,20 @@ Dashboard analytics "Shopify-like" pour démo portfolio :
 
 ## Decisions
 
-| Subject | Decision | Rationale |
-|---------|----------|-----------|
-| Monorepo | pnpm workspaces | Simple, shared types, unified scripts |
-| Backend | NestJS 11 | Modular, guards, Swagger, DI |
-| Frontend | Vue 3 + Pinia + Router | Modern SPA, simple state |
-| UI | PrimeVue | Fast components, theming |
-| Charts | ECharts (vue-echarts) | Flexible, professional |
-| Grid | gridstack.js | Mature drag/drop/resize |
-| Auth | Session cookies (HttpOnly) | Simple, secure, same-origin friendly |
-| Realtime | SSE | Unidirectional sufficient, simpler than WebSocket |
-| Database | PostgreSQL 16 | Standard, Supabase-friendly |
-| ORM | Prisma v7 | Migrations, types, driver adapter |
-| Seed | Idempotent (upsert) | Safe to re-run in public sandbox |
-| Deploy | Backend serves SPA | No CORS, cookies + SSE work seamlessly |
+| Subject  | Decision                   | Rationale                                         |
+| -------- | -------------------------- | ------------------------------------------------- |
+| Monorepo | pnpm workspaces            | Simple, shared types, unified scripts             |
+| Backend  | NestJS 11                  | Modular, guards, Swagger, DI                      |
+| Frontend | Vue 3 + Pinia + Router     | Modern SPA, simple state                          |
+| UI       | PrimeVue                   | Fast components, theming                          |
+| Charts   | ECharts (vue-echarts)      | Flexible, professional                            |
+| Grid     | gridstack.js               | Mature drag/drop/resize                           |
+| Auth     | Session cookies (HttpOnly) | Simple, secure, same-origin friendly              |
+| Realtime | SSE                        | Unidirectional sufficient, simpler than WebSocket |
+| Database | PostgreSQL 16              | Standard, Supabase-friendly                       |
+| ORM      | Prisma v7                  | Migrations, types, driver adapter                 |
+| Seed     | Idempotent (upsert)        | Safe to re-run in public sandbox                  |
+| Deploy   | Backend serves SPA         | No CORS, cookies + SSE work seamlessly            |
 
 See `docs/adr/` for detailed records.
 
@@ -64,6 +65,7 @@ flowchart LR
 ```
 
 Single NestJS service serves:
+
 - Static SPA files
 - REST API
 - SSE events
@@ -104,12 +106,12 @@ shopify-dashboard/
 
 ## Prisma v7 Configuration
 
-| Aspect | Approach |
-|--------|----------|
-| Provider | `prisma-client` (not `prisma-client-js`) |
-| Connection | Via adapter `@prisma/adapter-pg` |
-| Module format | `moduleFormat = "cjs"` |
-| PrismaService | Composition pattern (not inheritance) |
+| Aspect        | Approach                                 |
+| ------------- | ---------------------------------------- |
+| Provider      | `prisma-client` (not `prisma-client-js`) |
+| Connection    | Via adapter `@prisma/adapter-pg`         |
+| Module format | `moduleFormat = "cjs"`                   |
+| PrismaService | Composition pattern (not inheritance)    |
 
 NestJS does not support ESM natively. Configured as CommonJS.
 
@@ -135,12 +137,12 @@ sequenceDiagram
 
 ### Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /api/auth/demo | Demo login (no password) |
-| POST | /api/auth/login | Email/password login |
-| GET | /api/auth/me | Current user |
-| POST | /api/auth/logout | Destroy session |
+| Method | Path             | Description              |
+| ------ | ---------------- | ------------------------ |
+| POST   | /api/auth/demo   | Demo login (no password) |
+| POST   | /api/auth/login  | Email/password login     |
+| GET    | /api/auth/me     | Current user             |
+| POST   | /api/auth/logout | Destroy session          |
 
 ## Realtime (SSE)
 
@@ -159,12 +161,12 @@ sequenceDiagram
 
 ### Events
 
-| Event | Description |
-|-------|-------------|
+| Event         | Description             |
+| ------------- | ----------------------- |
 | order.created | New order (every 5-15s) |
-| kpi.updated | KPI refresh (every 30s) |
-| stock.alert | Low stock warning |
-| heartbeat | Keep-alive (every 30s) |
+| kpi.updated   | KPI refresh (every 30s) |
+| stock.alert   | Low stock warning       |
+| heartbeat     | Keep-alive (every 30s)  |
 
 ### Limits
 
@@ -175,18 +177,18 @@ sequenceDiagram
 
 Persisted per user in `dashboard_layouts.config` (JSONB).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /api/dashboard/layout | Get user layout |
-| PUT | /api/dashboard/layout | Save layout (rate limited) |
+| Method | Path                  | Description                |
+| ------ | --------------------- | -------------------------- |
+| GET    | /api/dashboard/layout | Get user layout            |
+| PUT    | /api/dashboard/layout | Save layout (rate limited) |
 
 Frontend saves with 2s debounce.
 
 ## Export
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /api/export/:type | Download CSV (orders, products, customers) |
+| Method | Path              | Description                                |
+| ------ | ----------------- | ------------------------------------------ |
+| GET    | /api/export/:type | Download CSV (orders, products, customers) |
 
 UTF-8 with BOM for Excel compatibility.
 
@@ -194,35 +196,35 @@ UTF-8 with BOM for Excel compatibility.
 
 See `docs/security.md` for details.
 
-| Measure | Implementation |
-|---------|----------------|
-| Cookies | HttpOnly, Secure, SameSite=Lax |
-| Sessions | 24h TTL + CRON cleanup |
-| Rate limiting | 100 req/min/IP global |
-| Layout save | 5 saves/min/session |
-| SSE | 5 connections/IP max |
-| Validation | class-validator on all inputs |
+| Measure        | Implementation                       |
+| -------------- | ------------------------------------ |
+| Cookies        | HttpOnly, Secure, SameSite=Lax       |
+| Sessions       | 24h TTL + CRON cleanup               |
+| Rate limiting  | 100 req/min/IP global                |
+| Layout save    | 5 saves/min/session                  |
+| SSE            | 5 connections/IP max                 |
+| Validation     | class-validator on all inputs        |
 | Error messages | Generic auth errors (no enumeration) |
 
 ## Observability
 
-| Aspect | Implementation |
-|--------|----------------|
+| Aspect  | Implementation               |
+| ------- | ---------------------------- |
 | Logging | nestjs-pino, structured JSON |
-| Health | GET /api/health |
-| Uptime | External ping (UptimeRobot) |
+| Health  | GET /api/health              |
+| Uptime  | External ping (UptimeRobot)  |
 
 ## Configuration
 
-| Variable | Description |
-|----------|-------------|
-| DATABASE_URL | PostgreSQL connection string |
-| NODE_ENV | development / production |
-| PORT | Server port (default 3000) |
-| DEMO_EMAIL | Demo account email |
-| JOHN_EMAIL | Test user email |
-| JOHN_PASSWORD | Test user password |
-| BCRYPT_SALT_ROUNDS | Hash rounds (default 10) |
+| Variable           | Description                  |
+| ------------------ | ---------------------------- |
+| DATABASE_URL       | PostgreSQL connection string |
+| NODE_ENV           | development / production     |
+| PORT               | Server port (default 3000)   |
+| DEMO_EMAIL         | Demo account email           |
+| JOHN_EMAIL         | Test user email              |
+| JOHN_PASSWORD      | Test user password           |
+| BCRYPT_SALT_ROUNDS | Hash rounds (default 10)     |
 
 ## References
 

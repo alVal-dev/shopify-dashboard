@@ -1,14 +1,14 @@
 # ADR 005 — Authentification pré-seedée (demo + user) & seed idempotent
 
-
 ## Contexte
 
 Projet **portfolio** destiné à être exploré très rapidement (recruteur, pair). Deux options classiques :
 
-1) **Inscription** : le visiteur crée un compte avant d’accéder au dashboard  
-2) **Comptes pré-seedés** : les comptes existent déjà, accès immédiat
+1. **Inscription** : le visiteur crée un compte avant d’accéder au dashboard
+2. **Comptes pré-seedés** : les comptes existent déjà, accès immédiat
 
 Contraintes et objectifs :
+
 - **Zéro friction** : permettre d’entrer dans l’app en quelques secondes.
 - La base doit être initialisable facilement en local et en production (Supabase).
 - Le seed doit être **rejouable** (dev, CI, redéploiement) **sans doublons**.
@@ -22,7 +22,7 @@ Contraintes et objectifs :
 Mettre en place une authentification **pré-seedée**, supportée par un seed **idempotent** :
 
 - **Compte demo** (`role=DEMO`) :
-  - accès “1 clic” via un bouton *Explorer la démo* ;
+  - accès “1 clic” via un bouton _Explorer la démo_ ;
   - **aucun mot de passe** (`password = NULL`).
 - **Compte standard** (`role=USER`) :
   - login email/mot de passe pour démontrer un flux d’auth classique ;
@@ -42,6 +42,7 @@ Mettre en place une authentification **pré-seedée**, supportée par un seed **
 ## Conséquences
 
 ### Bénéfices
+
 - **Aucune friction** : accès immédiat au dashboard.
 - Pas de gestion d’onboarding (validation email, mot de passe oublié, anti-spam, etc.).
 - Démonstration de **deux parcours** :
@@ -50,10 +51,12 @@ Mettre en place une authentification **pré-seedée**, supportée par un seed **
 - Environnements faciles à reconstruire : seed relançable, reproductible.
 
 ### Inconvénients
+
 - Pas de démonstration du parcours “inscription/onboarding”.
 - **État partagé** : tous les visiteurs demo partagent le même utilisateur (ex : layouts qui peuvent s’écraser si le layout est stocké par user).
 
 ### Risques acceptés
+
 - Le compte demo peut être “pollué” par des visiteurs : acceptable dans un sandbox portfolio.
 - Les credentials du compte standard sont publics : intentionnel pour la démo.
 
@@ -62,18 +65,24 @@ Mettre en place une authentification **pré-seedée**, supportée par un seed **
 ## Alternatives considérées (rejetées)
 
 ### A) Inscription réelle + validation email
+
 Rejeté car :
+
 - complexité disproportionnée pour un portfolio ;
 - nécessite un fournisseur d’email (SendGrid, etc.) ;
 - augmente la friction pour le visiteur.
 
 ### B) Comptes temporaires auto-générés
+
 Rejeté car :
+
 - plus complexe (création, tracking, nettoyage) ;
 - moins démonstratif d’un flux de login standard.
 
 ### C) Seed destructif (wipe + réinsertion)
+
 Rejeté car :
+
 - risqué en environnement partagé ;
 - posture peu sérieuse pour une démo publique stable.
 
@@ -95,13 +104,13 @@ Rejeté car :
 
 Seed via `upsert` :
 
-| Email (par défaut) | Rôle | Mot de passe (par défaut) |
-|---|---|---|
-| `demo@shopify-dashboard.com` | `DEMO` | aucun (`NULL`) |
-| `john@example.com` | `USER` | `password123` (hashé) |
+| Email (par défaut)           | Rôle   | Mot de passe (par défaut) |
+| ---------------------------- | ------ | ------------------------- |
+| `demo@shopify-dashboard.com` | `DEMO` | aucun (`NULL`)            |
+| `john@example.com`           | `USER` | `password123` (hashé)     |
 
 Fichiers :
+
 - Seed : `apps/api/prisma/seed.ts`
 - Config Prisma : `apps/api/prisma.config.ts` (`migrations.seed`)
 - Schéma DB : `docs/data-model.md`
-

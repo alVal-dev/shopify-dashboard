@@ -20,7 +20,7 @@ async function bootstrap() {
     const expressApp = app.getHttpAdapter().getInstance();
     expressApp.set('trust proxy', trustProxyHops);
   }
-  
+
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api');
   app.use(cookieParser());
@@ -29,9 +29,9 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,        // Supprime les propriétés non déclarées dans le DTO
-      forbidNonWhitelisted: true,  // Retourne 400 si propriétés inconnues
-      transform: true,        // Transforme le body en instance de la classe DTO
+      whitelist: true, // Supprime les propriétés non déclarées dans le DTO
+      forbidNonWhitelisted: true, // Retourne 400 si propriétés inconnues
+      transform: true, // Transforme le body en instance de la classe DTO
     }),
   );
 

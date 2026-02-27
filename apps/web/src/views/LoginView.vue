@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter, useRoute  } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import Button from 'primevue/button';
 import Card from 'primevue/card';
@@ -61,17 +61,10 @@ async function handleLogin(): Promise<void> {
       </template>
 
       <template #content>
-        <!-- Message d'erreur -->
-        <Message
-          v-if="authStore.error"
-          severity="error"
-          :closable="false"
-          class="login-error"
-        >
+        <Message v-if="authStore.error" severity="error" :closable="false" class="login-error">
           {{ authStore.error }}
         </Message>
 
-        <!-- Bouton démo -->
         <Button
           label="Explorer la démo"
           icon="pi pi-play"

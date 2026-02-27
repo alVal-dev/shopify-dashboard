@@ -8,7 +8,6 @@ import './assets/main.css';
 import 'primeicons/primeicons.css';
 import { useTheme } from './composables/useTheme';
 
-
 import { initApiClient } from './api';
 
 useTheme().initTheme();
@@ -27,6 +26,6 @@ app.use(PrimeVue, {
   },
 });
 
-initApiClient(router)
+initApiClient(router);
 
 app.mount('#app');

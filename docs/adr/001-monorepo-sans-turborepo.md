@@ -26,12 +26,14 @@ Utiliser **pnpm workspaces seul**, sans Turborepo ni Nx.
 ### Option A — pnpm workspaces seul
 
 **Avantages :**
+
 - Zéro dépendance supplémentaire, zéro configuration supplémentaire
 - Les scripts `--parallel` et `--filter` de pnpm couvrent les besoins du projet
 - Courbe d'apprentissage nulle pour quiconque connaît npm/pnpm
 - Debugging simple : pas de couche d'abstraction entre les commandes et leur exécution
 
 **Inconvénients :**
+
 - Pas de cache de build intelligent (chaque `pnpm build` rebuild tout)
 - Pas de détection automatique des dépendances entre packages pour l'ordre de build
 - Pas de remote caching pour la CI
@@ -39,12 +41,14 @@ Utiliser **pnpm workspaces seul**, sans Turborepo ni Nx.
 ### Option B — Turborepo
 
 **Avantages :**
+
 - Cache local et remote des builds (gain de temps en CI)
 - Graphe de dépendances automatique (build dans le bon ordre)
 - Parallélisation intelligente basée sur les dépendances
 - Commande `turbo run` unifiée
 
 **Inconvénients :**
+
 - Dépendance supplémentaire à installer et maintenir
 - Fichier `turbo.json` à configurer et synchroniser avec les scripts
 - Overhead cognitif : comprendre le cache, les inputs/outputs, les pipelines
@@ -53,10 +57,12 @@ Utiliser **pnpm workspaces seul**, sans Turborepo ni Nx.
 ### Option C — Nx
 
 **Avantages :**
+
 - Fonctionnalités similaires à Turborepo avec un écosystème de plugins plus riche
 - Génération de code et migrations automatiques
 
 **Inconvénients :**
+
 - Complexité significativement plus élevée que Turborepo
 - Configuration lourde pour un petit projet
 - Forte opinion sur la structure du projet

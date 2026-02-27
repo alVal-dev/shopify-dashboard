@@ -85,7 +85,6 @@ function toggleTheme(): void {
   setTheme(isDark.value ? 'light' : 'dark');
 }
 
-
 export function useTheme() {
   return {
     // state

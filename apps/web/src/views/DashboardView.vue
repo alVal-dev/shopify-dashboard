@@ -84,7 +84,8 @@ async function handleLogout(): Promise<void> {
     <div v-if="auth.isDemo" class="notice">
       <i class="pi pi-info-circle" />
       <span>
-        Mode démo : données fictives, réinitialisées régulièrement. Ne pas utiliser de données réelles.
+        Mode démo : données fictives, réinitialisées régulièrement. Ne pas utiliser de données
+        réelles.
       </span>
     </div>
 
@@ -120,7 +121,8 @@ async function handleLogout(): Promise<void> {
               <div class="empty-text">
                 <p class="empty-title">Les widgets arriveront bientôt</p>
                 <p class="empty-subtitle">
-                  Prochaines étapes : widgets KPI, graphiques ECharts, table commandes, layout persisté.
+                  Prochaines étapes : widgets KPI, graphiques ECharts, table commandes, layout
+                  persisté.
                 </p>
               </div>
             </div>
@@ -228,7 +230,6 @@ async function handleLogout(): Promise<void> {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
 
-  /* Aligné marque : basé sur primary */
   background: color-mix(in srgb, var(--p-primary-color), transparent 94%);
   border-bottom: 1px solid color-mix(in srgb, var(--p-primary-color), transparent 80%);
   color: var(--p-text-color);

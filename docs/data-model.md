@@ -2,12 +2,12 @@
 
 Schema migrated from `apps/api/prisma/schema.prisma`.
 
-| | |
-|---|---|
-| **Database** | PostgreSQL 16 |
-| **ORM** | Prisma v7 |
-| **Tables** | users, sessions, dashboard_layouts |
-| **Enum** | user_role |
+|              |                                    |
+| ------------ | ---------------------------------- |
+| **Database** | PostgreSQL 16                      |
+| **ORM**      | Prisma v7                          |
+| **Tables**   | users, sessions, dashboard_layouts |
+| **Enum**     | user_role                          |
 
 ## Schema Overview
 
@@ -38,33 +38,33 @@ Schema migrated from `apps/api/prisma/schema.prisma`.
 
 ## Enum user_role
 
-| Value | Description |
-|-------|-------------|
-| `DEMO` | Demo account, no password required |
+| Value  | Description                           |
+| ------ | ------------------------------------- |
+| `DEMO` | Demo account, no password required    |
 | `USER` | Standard account, email/password auth |
 
 ## Table: users
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | TEXT | PK | UUID |
-| email | TEXT | UNIQUE, NOT NULL | Login identifier |
-| password | TEXT | NULLABLE | Bcrypt hash, NULL for demo |
-| role | user_role | NOT NULL, DEFAULT USER | Account type |
-| created_at | TIMESTAMP | NOT NULL | Auto |
-| updated_at | TIMESTAMP | NOT NULL | Auto (Prisma) |
+| Column     | Type      | Constraints            | Description                |
+| ---------- | --------- | ---------------------- | -------------------------- |
+| id         | TEXT      | PK                     | UUID                       |
+| email      | TEXT      | UNIQUE, NOT NULL       | Login identifier           |
+| password   | TEXT      | NULLABLE               | Bcrypt hash, NULL for demo |
+| role       | user_role | NOT NULL, DEFAULT USER | Account type               |
+| created_at | TIMESTAMP | NOT NULL               | Auto                       |
+| updated_at | TIMESTAMP | NOT NULL               | Auto (Prisma)              |
 
 **SQL Constraints**: `users_pkey(id)`, `users_email_key(email)`
 
 ## Table: sessions
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | TEXT | PK | Internal UUID |
-| session_id | TEXT | UNIQUE, NOT NULL | Cookie token |
-| user_id | TEXT | FK → users.id, NOT NULL | Owner |
-| expires_at | TIMESTAMP | NOT NULL | TTL 24h |
-| created_at | TIMESTAMP | NOT NULL | Auto |
+| Column     | Type      | Constraints             | Description   |
+| ---------- | --------- | ----------------------- | ------------- |
+| id         | TEXT      | PK                      | Internal UUID |
+| session_id | TEXT      | UNIQUE, NOT NULL        | Cookie token  |
+| user_id    | TEXT      | FK → users.id, NOT NULL | Owner         |
+| expires_at | TIMESTAMP | NOT NULL                | TTL 24h       |
+| created_at | TIMESTAMP | NOT NULL                | Auto          |
 
 **SQL Constraints**: `sessions_pkey(id)`, `sessions_session_id_key(session_id)`, `sessions_user_id_fkey(user_id) ON DELETE CASCADE`
 
@@ -72,13 +72,13 @@ Schema migrated from `apps/api/prisma/schema.prisma`.
 
 ## Table: dashboard_layouts
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | TEXT | PK | Internal UUID |
-| user_id | TEXT | UNIQUE, FK → users.id, NOT NULL | One layout per user |
-| config | JSONB | NOT NULL | Widget configuration |
-| created_at | TIMESTAMP | NOT NULL | Auto |
-| updated_at | TIMESTAMP | NOT NULL | Auto (Prisma) |
+| Column     | Type      | Constraints                     | Description          |
+| ---------- | --------- | ------------------------------- | -------------------- |
+| id         | TEXT      | PK                              | Internal UUID        |
+| user_id    | TEXT      | UNIQUE, FK → users.id, NOT NULL | One layout per user  |
+| config     | JSONB     | NOT NULL                        | Widget configuration |
+| created_at | TIMESTAMP | NOT NULL                        | Auto                 |
+| updated_at | TIMESTAMP | NOT NULL                        | Auto (Prisma)        |
 
 **SQL Constraints**: `dashboard_layouts_pkey(id)`, `dashboard_layouts_user_id_key(user_id)`, `dashboard_layouts_user_id_fkey(user_id) ON DELETE CASCADE`
 
@@ -95,10 +95,10 @@ Schema migrated from `apps/api/prisma/schema.prisma`.
 
 Idempotent via `upsert`. Safe to re-run.
 
-| Email | Role | Password |
-|-------|------|----------|
-| demo@shopify-dashboard.com | DEMO | none |
-| john@example.com | USER | password123 |
+| Email                      | Role | Password    |
+| -------------------------- | ---- | ----------- |
+| demo@shopify-dashboard.com | DEMO | none        |
+| john@example.com           | USER | password123 |
 
 ```bash
 pnpm -C apps/api exec prisma db seed

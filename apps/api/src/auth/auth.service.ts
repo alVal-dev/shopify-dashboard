@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import type { AuthUser } from '@shared/types';
@@ -12,7 +8,7 @@ import { SessionsService } from './sessions.service';
 export type AuthLoginResult = {
   sessionId: string;
   expiresAt: Date;
-  user: AuthUser; 
+  user: AuthUser;
 };
 
 type DbUser = {
@@ -40,10 +36,7 @@ export class AuthService {
   }
 
   private async getDemoUser(): Promise<DbUser> {
-    const demoEmail = this.configService.get<string>(
-      'DEMO_EMAIL',
-      'demo@shopify-dashboard.com',
-    );
+    const demoEmail = this.configService.get<string>('DEMO_EMAIL', 'demo@shopify-dashboard.com');
 
     const user = await this.prisma.client.user.findUnique({
       where: { email: demoEmail },

@@ -11,7 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null);
   const isInitialized = ref(false);
 
-  // UI state (pour la page login)
+  // UI state (page login)
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 

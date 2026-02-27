@@ -5,7 +5,10 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev": "pnpm --parallel --filter api --filter web run dev",
-    "build": "pnpm --filter web build && pnpm --filter api build",
+    "build:web": "pnpm -C apps/web build",
+    "build:api": "pnpm -C apps/api build",
+    "build": "pnpm build:web && pnpm build:api",
+    "start": "node apps/api/dist/main.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

@@ -52,9 +52,7 @@ export class SessionsService {
 
     const isExpired = session.expiresAt.getTime() <= Date.now();
     if (isExpired) {
-      await this.prisma.client.session
-        .delete({ where: { sessionId } })
-        .catch(() => undefined); // best-effort
+      await this.prisma.client.session.delete({ where: { sessionId } }).catch(() => undefined); // best-effort
       return null;
     }
 
