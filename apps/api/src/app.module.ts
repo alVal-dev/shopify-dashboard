@@ -12,6 +12,7 @@ import { join } from 'path';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import type { Response } from 'express';
+import { MockShopifyModule } from './mock-shopify/mock-shopify.module';
 
 @Module({
   imports: [
@@ -22,25 +23,21 @@ import type { Response } from 'express';
         setHeaders: (res: Response, filePath: string) => {
           const p = filePath.replace(/\\/g, '/');
 
-          // 1) index.html: toujours revalider (évite index stale qui référence de vieux assets hashés)
           if (p.endsWith('/index.html')) {
             res.setHeader('Cache-Control', 'no-cache');
             return;
           }
 
-          // 2) Assets Vite hashés: cache long + immutable
           if (p.includes('/assets/')) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
             return;
           }
 
-          // 3) Favicon (non hashé, mais change rarement) : cache modéré
           if (p.endsWith('/favicon.ico')) {
             res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h
             return;
           }
 
-          // 4) Autres fichiers (safe default)
           res.setHeader('Cache-Control', 'public, max-age=3600'); // 1h
         },
       },
@@ -71,6 +68,7 @@ import type { Response } from 'express';
     HealthModule,
     PrismaModule,
     AuthModule,
+    MockShopifyModule,
   ],
   providers: [
     // Appliqué sur TOUTES les routes avant les autres guards

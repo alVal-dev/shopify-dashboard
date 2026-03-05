@@ -23,3 +23,9 @@ export interface TopProduct {
   revenueCents: number;
   unitsSold: number;
 }
+
+export interface AnalyticsSnapshot {
+  kpis: KpiMetrics;
+  salesTrend: SalesTrend;
+  topProducts: TopProduct[];
+}
