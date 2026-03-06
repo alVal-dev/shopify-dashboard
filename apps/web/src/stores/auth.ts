@@ -2,6 +2,9 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { AuthUser } from '@shared/types';
 import { api } from '../api';
+import { useOrdersStore } from './orders';
+import { useAnalyticsStore } from './analytics';
+import { useDashboardStore } from './dashboard';
 
 type AuthResponse = { data: AuthUser };
 type LogoutResponse = { data: { ok: true } };
@@ -75,6 +78,9 @@ export const useAuthStore = defineStore('auth', () => {
       // best-effort: même si le serveur échoue, on reset le state local
     } finally {
       user.value = null;
+      useOrdersStore().reset();
+      useAnalyticsStore().reset();
+      useDashboardStore().reset();
     }
   }
 
