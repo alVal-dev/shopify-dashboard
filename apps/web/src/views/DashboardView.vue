@@ -1,19 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import Toolbar from 'primevue/toolbar';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import Chip from 'primevue/chip';
-import Card from 'primevue/card';
 import Divider from 'primevue/divider';
 
 import { useAuthStore } from '../stores/auth';
+import { useDashboardStore } from '../stores/dashboard';
+import { useOrdersStore } from '../stores/orders';
+import { useAnalyticsStore } from '../stores/analytics';
 import { useTheme } from '../composables/useTheme';
+
+import KpiCardWidget from '../components/widgets/KpiCardWidget.vue';
+import RevenueTrendWidget from '../components/widgets/RevenueTrendWidget.vue';
+import OrdersTableWidget from '../components/widgets/OrdersTableWidget.vue';
+import TopProductsWidget from '../components/widgets/TopProductsWidget.vue';
 
 const router = useRouter();
 const auth = useAuthStore();
+const dashboard = useDashboardStore();
+const orders = useOrdersStore();
+const analytics = useAnalyticsStore();
 const theme = useTheme();
 
 const userEmail = computed(() => auth.user?.email ?? '');
@@ -23,9 +33,26 @@ const envSeverity = computed(() => (auth.isDemo ? 'warning' : 'success'));
 const themeIcon = computed(() => (theme.isDark.value ? 'pi pi-sun' : 'pi pi-moon'));
 const themeLabel = computed(() => (theme.isDark.value ? 'Light' : 'Dark'));
 
+onMounted(() => {
+  dashboard.load();
+});
+
 async function handleLogout(): Promise<void> {
   await auth.logout();
   await router.replace('/login');
+}
+
+function handlePageChange(page: number) {
+  orders.setPage(page);
+}
+
+function handleSortChange(field: string, order: 'asc' | 'desc') {
+  const sortBy = field as 'createdAt' | 'totalPriceCents' | 'orderNumber';
+  orders.setSort(sortBy, order);
+}
+
+function handleStatusChange(status: 'pending' | 'paid' | 'refunded' | 'cancelled' | null) {
+  orders.setStatus(status ?? undefined);
 }
 </script>
 
@@ -91,43 +118,46 @@ async function handleLogout(): Promise<void> {
 
     <main class="content">
       <div class="container">
-        <Card class="placeholder-card">
-          <template #title>
-            <div class="card-title">
-              <span>Dashboard</span>
-              <Tag value="Widgets bientôt" severity="secondary" />
-            </div>
-          </template>
+        <div class="widgets-grid">
+          <div class="widget-cell widget-kpis">
+            <KpiCardWidget
+              :kpis="analytics.kpis"
+              :loading="analytics.isLoading"
+              :error="analytics.error"
+            />
+          </div>
 
-          <template #content>
-            <div class="kpi-grid">
-              <div class="kpi">
-                <div class="kpi-label">Revenue (30j)</div>
-                <div class="kpi-value">$—</div>
-                <div class="kpi-hint">En attente de la Mock API</div>
-              </div>
+          <div class="widget-cell widget-trend">
+            <RevenueTrendWidget
+              :sales-trend="analytics.salesTrend"
+              :loading="analytics.isLoading"
+              :error="analytics.error"
+            />
+          </div>
 
-              <div class="kpi">
-                <div class="kpi-label">Orders</div>
-                <div class="kpi-value">—</div>
-                <div class="kpi-hint">En attente de la Mock API</div>
-              </div>
-            </div>
+          <div class="widget-cell widget-orders">
+            <OrdersTableWidget
+              :orders="orders.orders"
+              :total="orders.total"
+              :page="orders.page"
+              :limit="orders.limit"
+              :loading="orders.isLoading"
+              :error="orders.error"
+              :current-status="orders.query.status ?? null"
+              @page-change="handlePageChange"
+              @sort-change="handleSortChange"
+              @status-change="handleStatusChange"
+            />
+          </div>
 
-            <Divider />
-
-            <div class="empty-state">
-              <i class="pi pi-objects-column empty-icon" />
-              <div class="empty-text">
-                <p class="empty-title">Les widgets arriveront bientôt</p>
-                <p class="empty-subtitle">
-                  Prochaines étapes : widgets KPI, graphiques ECharts, table commandes, layout
-                  persisté.
-                </p>
-              </div>
-            </div>
-          </template>
-        </Card>
+          <div class="widget-cell widget-products">
+            <TopProductsWidget
+              :top-products="analytics.topProducts"
+              :loading="analytics.isLoading"
+              :error="analytics.error"
+            />
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -190,7 +220,6 @@ async function handleLogout(): Promise<void> {
   font-size: 0.75rem;
 }
 
-/* Actions */
 .actions {
   display: flex;
   align-items: center;
@@ -226,10 +255,8 @@ async function handleLogout(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-
   background: color-mix(in srgb, var(--p-primary-color), transparent 94%);
   border-bottom: 1px solid color-mix(in srgb, var(--p-primary-color), transparent 80%);
   color: var(--p-text-color);
@@ -244,78 +271,58 @@ async function handleLogout(): Promise<void> {
 }
 
 .container {
-  max-width: 1040px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
-.placeholder-card {
-  border: 1px solid var(--p-surface-border);
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.kpi-grid {
+.widgets-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
 }
 
-.kpi {
-  border: 1px solid var(--p-surface-border);
-  border-radius: var(--p-border-radius);
-  padding: 0.75rem;
-  background: var(--p-surface-card);
+.widget-cell {
+  min-height: 0;
 }
 
-.kpi-label {
-  font-size: 0.8rem;
-  color: var(--p-text-muted-color);
+.widget-kpis {
+  min-height: 200px;
 }
 
-.kpi-value {
-  margin-top: 0.25rem;
-  font-size: 1.25rem;
-  font-weight: 700;
+.widget-trend {
+  min-height: 300px;
 }
 
-.kpi-hint {
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--p-text-muted-color);
+.widget-orders {
+  min-height: 400px;
 }
 
-.empty-state {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.widget-products {
+  min-height: 300px;
 }
 
-.empty-icon {
-  font-size: 2.25rem;
-  opacity: 0.5;
-}
+@media (max-width: 900px) {
+  .widgets-grid {
+    grid-template-columns: 1fr;
+  }
 
-.empty-title {
-  margin: 0;
-  font-weight: 700;
-}
+  .widget-kpis,
+  .widget-trend,
+  .widget-orders,
+  .widget-products {
+    min-height: 300px;
+  }
 
-.empty-subtitle {
-  margin: 0.15rem 0 0;
-  color: var(--p-text-muted-color);
+  .widget-orders {
+    min-height: 400px;
+  }
 }
 
 @media (max-width: 640px) {
   .brand-subtitle {
     display: none;
   }
-  .kpi-grid {
-    grid-template-columns: 1fr;
-  }
+
   .user-chip {
     display: none;
   }
