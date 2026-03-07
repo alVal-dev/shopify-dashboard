@@ -9,7 +9,7 @@ L’API REST est servie par NestJS sous le préfixe `/api`. Les réponses sont e
 - Développement : `http://localhost:3000/api`
 - Production : `https://<app>.onrender.com/api`
 
-**Swagger (dev)** : `http://localhost:3000/docs`
+**Swagger (hors production)** : `http://localhost:3000/docs`
 
 ---
 
@@ -24,6 +24,10 @@ La plupart des endpoints renvoient un wrapper :
   "data": {}
 }
 ```
+
+Exception actuelle :
+
+- `GET /api/health` retourne un objet simple sans wrapper.
 
 ### Gestion des erreurs
 
@@ -44,7 +48,7 @@ Erreurs de validation (400) :
 ```json
 {
   "statusCode": 400,
-  "message": ["email must be an email", "password must be at least 8 characters"],
+  "message": ["email must be an email", "password must be longer than or equal to 8 characters"],
   "error": "Bad Request"
 }
 ```
@@ -53,14 +57,14 @@ Erreurs de validation (400) :
 
 ## Authentification
 
-L’API utilise des **sessions serveur** via cookie HttpOnly. Voir [ADR 002](adr/002-session-id-sans-jwt.md) pour la décision et les justifications.
+L’API utilise des **sessions serveur** via cookie HttpOnly. Voir [ADR 002](adr/002-session-id-sans-jwt.md).
 
 ### Mécanisme
 
 1. Le client appelle `POST /api/auth/login` ou `POST /api/auth/demo`
-2. Le serveur crée une session en DB et pose un cookie `sessionId`
-3. Les requêtes suivantes incluent automatiquement le cookie (client Axios : `withCredentials: true`)
-4. Le serveur valide la session à chaque requête protégée (`expiresAt` enforce côté serveur)
+2. Le serveur crée une session en base et pose un cookie `sessionId`
+3. Les requêtes suivantes incluent automatiquement le cookie
+4. Le serveur valide la session à chaque requête protégée
 
 ### Cookie `sessionId`
 
@@ -90,13 +94,20 @@ const api = axios.create({
 
 L’API utilise `@nestjs/throttler`.
 
-| Scope      | Limite         | Cible                  |
-| ---------- | -------------- | ---------------------- |
-| Global     | 300 req/min/IP | Toutes les routes      |
-| Auth login | 10 req/min/IP  | `POST /api/auth/login` |
-| Auth demo  | 10 req/min/IP  | `POST /api/auth/demo`  |
+| Scope       | Limite            | Cible                       |
+| ----------- | ----------------- | --------------------------- |
+| Global      | 300 req/min/IP    | Toutes les routes           |
+| Auth login  | 10 req/min/IP     | `POST /api/auth/login`      |
+| Auth demo   | 10 req/min/IP     | `POST /api/auth/demo`       |
+| Layout save | 5 req/min/session | `PUT /api/dashboard/layout` |
 
-Réponse 429 (exemple) :
+### Notes
+
+- Le throttling global et auth est basé sur l’IP.
+- Le throttling de sauvegarde du layout est basé sur le `sessionId`.
+- `PUT /api/dashboard/layout` renvoie des headers de rate limiting (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) et `Retry-After` en cas de blocage.
+
+Exemple 429 :
 
 ```json
 {
@@ -105,15 +116,13 @@ Réponse 429 (exemple) :
 }
 ```
 
-> Selon version/config, des headers de rate limiting peuvent être présents (ex. `Retry-After`). Se référer au comportement effectif observé en environnement.
-
 ---
 
 ## Endpoints
 
-### Health Check
+## Health Check
 
-#### `GET /api/health`
+### `GET /api/health`
 
 Vérifie que l’API est opérationnelle.
 
@@ -135,7 +144,7 @@ Réponse 200 :
 
 ### `POST /api/auth/demo`
 
-Crée une session pour l’utilisateur démo. Permet d’explorer l’application sans credentials.
+Crée une session pour l’utilisateur démo.
 
 - **Authentification** : non requise
 - **Rate limit** : 10 req/min/IP
@@ -153,24 +162,18 @@ Réponse 200 :
 }
 ```
 
-Headers (exemple) :
-
-```
-Set-Cookie: sessionId=<uuid>; HttpOnly; SameSite=Lax; Path=/; Expires=<date>
-```
-
 Erreurs possibles :
 
-| Status | Description                            |
-| ------ | -------------------------------------- |
-| 429    | Too Many Requests (rate limit dépassé) |
-| 500    | Demo user not found (seed manquant)    |
+| Status | Description                                |
+| ------ | ------------------------------------------ |
+| 429    | Rate limit dépassé                         |
+| 500    | Utilisateur démo introuvable (seed absent) |
 
 ---
 
 ### `POST /api/auth/login`
 
-Authentifie un utilisateur avec email et mot de passe. Crée une session et pose le cookie.
+Authentifie un utilisateur avec email et mot de passe.
 
 - **Authentification** : non requise
 - **Rate limit** : 10 req/min/IP
@@ -205,23 +208,22 @@ Réponse 200 :
 
 Erreurs possibles :
 
-| Status | Description                                   |
-| ------ | --------------------------------------------- |
-| 400    | Bad Request (validation échouée)              |
-| 401    | Invalid email or password (message générique) |
-| 429    | Too Many Requests                             |
+| Status | Description                    |
+| ------ | ------------------------------ |
+| 400    | Validation échouée             |
+| 401    | Email ou mot de passe invalide |
+| 429    | Rate limit dépassé             |
 
-> Note sécurité : le message 401 est volontairement générique pour ne pas révéler si l’email existe.
+> Le message 401 reste volontairement générique.
 
 ---
 
 ### `GET /api/auth/me`
 
-Retourne l’utilisateur connecté à partir du cookie `sessionId`.
+Retourne l’utilisateur connecté.
 
-- **Authentification** : requise (cookie `sessionId`)
+- **Authentification** : requise
 - **Rate limit** : global (300 req/min/IP)
-- **Body** : aucun
 
 Réponse 200 :
 
@@ -237,11 +239,9 @@ Réponse 200 :
 
 Erreurs possibles :
 
-| Status | Description                                                    |
-| ------ | -------------------------------------------------------------- |
-| 401    | Not authenticated (cookie absent, session invalide ou expirée) |
-
-> Côté frontend, cet endpoint est appelé au boot via `checkAuth()` avec une option `silent401` (pour éviter une redirection automatique lors de l’initialisation).
+| Status | Description     |
+| ------ | --------------- |
+| 401    | Non authentifié |
 
 ---
 
@@ -249,9 +249,8 @@ Erreurs possibles :
 
 Supprime la session en cours et efface le cookie.
 
-- **Authentification** : optionnelle (best-effort si cookie présent)
+- **Authentification** : optionnelle (best-effort)
 - **Rate limit** : global (300 req/min/IP)
-- **Body** : aucun
 
 Réponse 200 :
 
@@ -263,19 +262,265 @@ Réponse 200 :
 }
 ```
 
-Headers (exemple) :
+---
 
-```
-Set-Cookie: sessionId=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+## Mock Shopify Data
+
+Ces endpoints sont protégés par session.
+
+## Orders
+
+### `GET /api/orders`
+
+Retourne une liste paginée de commandes mockées.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Query params principaux :
+
+| Paramètre | Type            | Description                    |
+| --------- | --------------- | ------------------------------ |
+| page      | number          | page courante                  |
+| limit     | number          | taille de page                 |
+| sortBy    | string          | champ de tri                   |
+| sortOrder | `asc` \| `desc` | sens du tri                    |
+| status    | string          | filtre sur le statut financier |
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "items": [],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 80,
+      "totalPages": 8
+    }
+  }
+}
 ```
 
-> Note : l’endpoint est best-effort et vise à être idempotent côté client.
+---
+
+## Products
+
+### `GET /api/products`
+
+Retourne une liste paginée de produits mockés.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "items": [],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 24,
+      "totalPages": 3
+    }
+  }
+}
+```
+
+---
+
+## Customers
+
+### `GET /api/customers`
+
+Retourne une liste paginée de clients mockés.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "items": [],
+    "meta": {
+      "page": 1,
+      "limit": 10,
+      "total": 80,
+      "totalPages": 8
+    }
+  }
+}
+```
+
+---
+
+## Analytics
+
+### `GET /api/analytics`
+
+Retourne un snapshot analytique agrégé.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "kpis": {
+      "revenue": {
+        "valueCents": 5415072,
+        "deltaPercent": 12.4
+      },
+      "orders": {
+        "value": 128,
+        "deltaPercent": 8.1
+      },
+      "averageOrderValue": {
+        "valueCents": 42305,
+        "deltaPercent": -1.8
+      },
+      "customers": {
+        "value": 80,
+        "deltaPercent": 5.2
+      }
+    },
+    "salesTrend": [],
+    "topProducts": []
+  }
+}
+```
+
+---
+
+## Dashboard Layout
+
+## `GET /api/dashboard/layout`
+
+Retourne la disposition du tableau de bord pour l’utilisateur connecté.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Comportement :
+
+- si un layout est déjà enregistré pour l’utilisateur, il est renvoyé ;
+- sinon, le backend renvoie le layout par défaut.
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "widgets": [
+      {
+        "id": "kpi-1",
+        "type": "kpi-cards",
+        "title": "Indicateurs clés",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 2
+        }
+      },
+      {
+        "id": "trend-1",
+        "type": "revenue-trend",
+        "title": "Tendance du chiffre d'affaires",
+        "position": {
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 2
+        }
+      }
+    ]
+  }
+}
+```
+
+Erreurs possibles :
+
+| Status | Description     |
+| ------ | --------------- |
+| 401    | Non authentifié |
+
+---
+
+## `PUT /api/dashboard/layout`
+
+Sauvegarde le layout complet de l’utilisateur connecté.
+
+- **Authentification** : requise
+- **Rate limit** : 5 req/min/session
+
+Body :
+
+```json
+{
+  "widgets": [
+    {
+      "id": "kpi-1",
+      "type": "kpi-cards",
+      "title": "Indicateurs clés",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 2
+      }
+    }
+  ]
+}
+```
+
+Comportement :
+
+- sauvegarde en upsert ;
+- un seul layout par utilisateur ;
+- le compte démo ne peut pas sauvegarder.
+
+Réponse 200 :
+
+```json
+{
+  "data": {
+    "widgets": [
+      {
+        "id": "kpi-1",
+        "type": "kpi-cards",
+        "title": "Indicateurs clés",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 2
+        }
+      }
+    ]
+  }
+}
+```
+
+Erreurs possibles :
+
+| Status | Description                      |
+| ------ | -------------------------------- |
+| 400    | Validation échouée               |
+| 401    | Non authentifié                  |
+| 403    | Compte démo : sauvegarde refusée |
+| 429    | Rate limit dépassé               |
 
 ---
 
 ## Types partagés (référence)
-
-Les types TypeScript partagés sont dans `shared/types/` et utilisés par le backend et le frontend.
 
 ### `AuthUser`
 
@@ -303,6 +548,30 @@ interface ApiErrorResponse {
   message: string | string[];
   error?: string;
   timestamp?: string;
+}
+```
+
+### `DashboardLayout`
+
+```ts
+type WidgetType = 'kpi-cards' | 'revenue-trend' | 'orders-table' | 'top-products' | 'realtime-feed';
+
+interface WidgetPosition {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface WidgetConfig {
+  id: string;
+  type: WidgetType;
+  title: string;
+  position: WidgetPosition;
+}
+
+interface DashboardLayout {
+  widgets: WidgetConfig[];
 }
 ```
 
@@ -335,6 +604,22 @@ curl http://localhost:3000/api/auth/me \
   -b cookies.txt
 ```
 
+### Get dashboard layout
+
+```bash
+curl http://localhost:3000/api/dashboard/layout \
+  -b cookies.txt
+```
+
+### Save dashboard layout
+
+```bash
+curl -X PUT http://localhost:3000/api/dashboard/layout \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"widgets":[{"id":"kpi-1","type":"kpi-cards","title":"Indicateurs clés","position":{"x":0,"y":0,"w":6,"h":2}}]}'
+```
+
 ### Logout
 
 ```bash
@@ -343,12 +628,14 @@ curl -X POST http://localhost:3000/api/auth/logout \
   -c cookies.txt
 ```
 
-### Test rate limiting (auth demo)
+### Test rate limiting layout
 
 ```bash
-# 11 requêtes rapides sur demo -> la 11ème retourne 429
-for i in $(seq 1 11); do
+for i in $(seq 1 6); do
   curl -s -o /dev/null -w "%{http_code}\n" \
-    -X POST http://localhost:3000/api/auth/demo
+    -X PUT http://localhost:3000/api/dashboard/layout \
+    -H "Content-Type: application/json" \
+    -b cookies.txt \
+    -d '{"widgets":[{"id":"kpi-1","type":"kpi-cards","title":"Indicateurs clés","position":{"x":0,"y":0,"w":6,"h":2}}]}'
 done
 ```
