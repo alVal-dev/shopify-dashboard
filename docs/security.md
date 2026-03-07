@@ -19,14 +19,18 @@ Voir [ADR-002 : Session ID sans JWT](adr/002-session-id-sans-jwt.md)
 
 ## Rate Limiting
 
-| Cible              | Limite         | Raison                       |
-| ------------------ | -------------- | ---------------------------- |
-| Toutes les routes  | 300 req/min/IP | Filet de sécurité anti-flood |
-| `POST /auth/login` | 10 req/min/IP  | Anti brute-force             |
-| `POST /auth/demo`  | 10 req/min/IP  | Anti spam de sessions        |
+| Cible                   | Limite                | Raison                                              |
+| ----------------------- | --------------------- | --------------------------------------------------- |
+| Toutes les routes       | 300 req/min/IP        | Filet de sécurité anti-flood                        |
+| `POST /auth/login`      | 10 req/min/IP         | Anti brute-force                                    |
+| `POST /auth/demo`       | 10 req/min/IP         | Anti spam de sessions                               |
+| `PUT /dashboard/layout` | 5 req/min/**session** | Protège l’auto-save (drag/resize), évite le spam DB |
 
-Implémentation : `@nestjs/throttler` avec guard global (`APP_GUARD`) et
-overrides per-route via `@Throttle()`.
+Implémentation :
+
+- `@nestjs/throttler` avec guard global (`APP_GUARD`) et overrides per-route via `@Throttle()`.
+- Pour `PUT /dashboard/layout`, le rate limit est **par session** (cookie `sessionId`) via un guard dédié
+  utilisant le storage du throttler (clé `dashboard-layout-save:<sessionId>`), plutôt que le tracker IP par défaut.
 
 Store : in-memory (suffisant en mono-instance). Si scale-out, migrer vers un
 store Redis.
@@ -52,6 +56,14 @@ combinées.
 
 - `class-validator` via `ValidationPipe` global
 - DTOs typés sur tous les endpoints qui acceptent un body
+
+## Persistance du dashboard (sandbox)
+
+- Le layout est stocké en base dans `dashboard_layouts.config` (JSON) pour les comptes `USER`.
+- **Mode démo (`role=DEMO`)** : la persistance du layout est **désactivée**.
+  - `PUT /dashboard/layout` retourne **403 Forbidden**.
+  - L’UI affiche un message indiquant que la persistance est désactivée en mode démo.
+  - Objectif : éviter que des visiteurs se marchent dessus (un seul user demo partagé en sandbox publique).
 
 ## En dehors du scope
 

@@ -13,6 +13,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import type { Response } from 'express';
 import { MockShopifyModule } from './mock-shopify/mock-shopify.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { MockShopifyModule } from './mock-shopify/mock-shopify.module';
     PrismaModule,
     AuthModule,
     MockShopifyModule,
+    DashboardModule,
   ],
   providers: [
     // Appliqué sur TOUTES les routes avant les autres guards

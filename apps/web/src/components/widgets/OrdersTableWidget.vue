@@ -5,7 +5,9 @@ import Column from 'primevue/column';
 import Tag from 'primevue/tag';
 import Select from 'primevue/select';
 import type { DataTablePageEvent, DataTableSortEvent } from 'primevue/datatable';
-import type { Order, FinancialStatus } from '@shared/types';
+import type { FinancialStatus, Order } from '@shared/types';
+import type { OrdersSortBy } from '../../api/query';
+
 import WidgetWrapper from '../WidgetWrapper.vue';
 import { formatCurrency } from '../../utils/format';
 
@@ -27,11 +29,25 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'page-change': [page: number];
-  'sort-change': [field: string, order: 'asc' | 'desc'];
+  'sort-change': [field: OrdersSortBy, order: 'asc' | 'desc'];
   'status-change': [status: FinancialStatus | null];
 }>();
 
-const statusOptions = [
+const ORDERS_SORT_FIELDS = [
+  'createdAt',
+  'totalPriceCents',
+  'orderNumber',
+] as const satisfies readonly OrdersSortBy[];
+
+const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const statusOptions: Array<{ label: string; value: FinancialStatus | null }> = [
   { label: 'Tous les statuts', value: null },
   { label: 'En attente', value: 'pending' },
   { label: 'Payée', value: 'paid' },
@@ -39,26 +55,23 @@ const statusOptions = [
   { label: 'Annulée', value: 'cancelled' },
 ];
 
-const statusConfig: Record<FinancialStatus, { label: string; severity: string }> = {
+const statusConfig = {
   pending: { label: 'En attente', severity: 'warn' },
   paid: { label: 'Payée', severity: 'success' },
   refunded: { label: 'Remboursée', severity: 'info' },
   cancelled: { label: 'Annulée', severity: 'danger' },
-};
+} satisfies Record<FinancialStatus, { label: string; severity: string }>;
+
+function isOrdersSortBy(value: string): value is OrdersSortBy {
+  return ORDERS_SORT_FIELDS.some((field) => field === value);
+}
 
 function formatOrderNumber(orderNumber: number): string {
   return `#${orderNumber}`;
 }
 
 function formatDate(isoDate: string): string {
-  const date = new Date(isoDate);
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return dateTimeFormatter.format(new Date(isoDate));
 }
 
 function formatAmount(cents: number): string {
@@ -66,10 +79,11 @@ function formatAmount(cents: number): string {
 }
 
 function getStatusConfig(status: FinancialStatus) {
-  return statusConfig[status] || { label: status, severity: 'secondary' };
+  return statusConfig[status];
 }
 
 const first = computed(() => (props.page - 1) * props.limit);
+const hasData = computed(() => props.orders.length > 0);
 
 function onPage(event: DataTablePageEvent) {
   const newPage = (event.page ?? 0) + 1;
@@ -77,18 +91,29 @@ function onPage(event: DataTablePageEvent) {
 }
 
 function onSort(event: DataTableSortEvent) {
-  if (!event.sortField) return;
+  if (typeof event.sortField !== 'string') {
+    return;
+  }
 
-  const field = event.sortField as string;
+  if (!isOrdersSortBy(event.sortField)) {
+    console.warn(
+      '[OrdersTableWidget] Champ de tri inattendu reçu depuis PrimeVue DataTable :',
+      event.sortField,
+    );
+    return;
+  }
+
+  if (event.sortOrder !== 1 && event.sortOrder !== -1) {
+    return;
+  }
+
   const order = event.sortOrder === 1 ? 'asc' : 'desc';
-  emit('sort-change', field, order);
+  emit('sort-change', event.sortField, order);
 }
 
 function onStatusChange(status: FinancialStatus | null) {
   emit('status-change', status);
 }
-
-const hasData = computed(() => props.orders.length > 0);
 </script>
 
 <template>
