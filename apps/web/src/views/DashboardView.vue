@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, type Component, type CSSProperties } from 'vue';
+import { computed, onMounted, ref, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import type { FinancialStatus, WidgetConfig, WidgetType } from '@shared/types';
 import type { OrdersSortBy } from '../api/query';
@@ -9,6 +9,8 @@ import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import Chip from 'primevue/chip';
 import Divider from 'primevue/divider';
+import Sidebar from 'primevue/sidebar';
+import Tooltip from 'primevue/tooltip';
 
 import { useAuthStore } from '../stores/auth';
 import { useDashboardStore } from '../stores/dashboard';
@@ -16,33 +18,75 @@ import { useOrdersStore } from '../stores/orders';
 import { useAnalyticsStore } from '../stores/analytics';
 import { useTheme } from '../composables/useTheme';
 
+import DashboardGrid from '../components/DashboardGrid.vue';
+import WidgetCatalog from '../components/WidgetCatalog.vue';
 import KpiCardWidget from '../components/widgets/KpiCardWidget.vue';
 import RevenueTrendWidget from '../components/widgets/RevenueTrendWidget.vue';
 import OrdersTableWidget from '../components/widgets/OrdersTableWidget.vue';
 import TopProductsWidget from '../components/widgets/TopProductsWidget.vue';
+import type { DashboardGridItemState } from '../composables/useDashboardGrid';
+import { getDashboardWidgetDefinition } from '../config/dashboard-widgets';
 
-type WidgetGridStyle = CSSProperties & {
-  '--widget-col-start': string;
-  '--widget-col-span': string;
-  '--widget-row-start': string;
-  '--widget-row-span': string;
-};
+const vTooltip = Tooltip;
 
-type WidgetListeners = {
-  'page-change'?: (page: number) => void;
-  'sort-change'?: (field: OrdersSortBy, order: 'asc' | 'desc') => void;
-  'status-change'?: (status: FinancialStatus | null) => void;
-};
+type WidgetListeners = Record<string, (...args: any[]) => void>;
 
 type WidgetViewModel = {
   id: string;
   title: string;
+  position: WidgetConfig['position'];
+  minW: number;
+  minH: number;
   component: Component | null;
   props: Record<string, unknown>;
-  listeners: WidgetListeners;
-  className: string;
-  style: WidgetGridStyle;
+  listeners?: WidgetListeners;
+  className?: string;
 };
+
+type WidgetCatalogItem = {
+  type: WidgetType;
+  title: string;
+  description: string;
+  icon: string;
+};
+
+type LayoutChangePayload = {
+  changedItems: DashboardGridItemState[];
+  currentItems: DashboardGridItemState[];
+};
+
+const WIDGET_CATALOG_ITEMS: readonly WidgetCatalogItem[] = [
+  {
+    type: 'kpi-cards',
+    title: 'Indicateurs clés',
+    description: "Chiffre d'affaires, commandes, panier moyen et clients.",
+    icon: 'pi pi-chart-bar',
+  },
+  {
+    type: 'revenue-trend',
+    title: "Tendance du chiffre d'affaires",
+    description: "Graphique d'évolution des revenus sur la période.",
+    icon: 'pi pi-chart-line',
+  },
+  {
+    type: 'orders-table',
+    title: 'Commandes',
+    description: 'Liste paginée des commandes récentes.',
+    icon: 'pi pi-list',
+  },
+  {
+    type: 'top-products',
+    title: 'Top produits',
+    description: 'Classement des produits les plus vendus.',
+    icon: 'pi pi-star',
+  },
+  {
+    type: 'realtime-feed',
+    title: 'Flux temps réel',
+    description: 'Activité en direct de la boutique. Affiché en placeholder dans cette phase.',
+    icon: 'pi pi-bolt',
+  },
+];
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -50,6 +94,8 @@ const dashboard = useDashboardStore();
 const orders = useOrdersStore();
 const analytics = useAnalyticsStore();
 const theme = useTheme();
+
+const isWidgetCatalogVisible = ref(false);
 
 const userEmail = computed(() => auth.user?.email ?? '');
 const envLabel = computed(() => (auth.isDemo ? 'Démo publique' : 'Session utilisateur'));
@@ -62,6 +108,31 @@ const resolvedWidgets = computed<WidgetViewModel[]>(() =>
   dashboard.orderedWidgets.map((widget) => buildWidgetViewModel(widget)),
 );
 
+const availableCatalogItems = computed<WidgetCatalogItem[]>(() => {
+  if (!dashboard.hasLayout) {
+    return [];
+  }
+
+  const availableTypes = new Set(dashboard.availableWidgetTypes);
+  return WIDGET_CATALOG_ITEMS.filter((item) => availableTypes.has(item.type));
+});
+
+const canOpenWidgetCatalog = computed(() => {
+  return dashboard.hasLayout && !dashboard.isLayoutLoading && dashboard.canAddMoreWidgets;
+});
+
+const widgetCatalogDisabledMessage = computed(() => {
+  if (dashboard.isLayoutLoading) {
+    return 'La disposition du tableau de bord est en cours de chargement.';
+  }
+
+  if (!dashboard.hasLayout) {
+    return "La disposition du tableau de bord doit être chargée avant d'ajouter un widget.";
+  }
+
+  return 'Tous les widgets disponibles sont déjà présents dans le tableau de bord.';
+});
+
 onMounted(() => {
   dashboard.load();
 });
@@ -69,6 +140,40 @@ onMounted(() => {
 async function handleLogout(): Promise<void> {
   await auth.logout();
   await router.replace('/login');
+}
+
+function openWidgetCatalog(): void {
+  if (!canOpenWidgetCatalog.value) {
+    return;
+  }
+
+  isWidgetCatalogVisible.value = true;
+}
+
+function closeWidgetCatalog(): void {
+  isWidgetCatalogVisible.value = false;
+}
+
+async function handleAddWidget(type: WidgetType): Promise<void> {
+  const addedWidget = dashboard.addWidget(type);
+
+  if (!addedWidget) {
+    return;
+  }
+
+  closeWidgetCatalog();
+
+  if (auth.isDemo) {
+    return;
+  }
+
+  await dashboard.persistLayout();
+}
+
+async function handleLayoutChange(payload: LayoutChangePayload): Promise<void> {
+  await dashboard.applyGridLayoutAndPersist(payload.currentItems, {
+    persistRemotely: !auth.isDemo,
+  });
 }
 
 function handlePageChange(page: number): void {
@@ -83,22 +188,16 @@ function handleStatusChange(status: FinancialStatus | null): void {
   orders.setStatus(status ?? undefined);
 }
 
-function getWidgetGridStyle(widget: WidgetConfig): WidgetGridStyle {
-  return {
-    '--widget-col-start': String(widget.position.x + 1),
-    '--widget-col-span': String(widget.position.w),
-    '--widget-row-start': String(widget.position.y + 1),
-    '--widget-row-span': String(widget.position.h),
-  };
-}
-
 function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
+  const definition = getDashboardWidgetDefinition(widget.type);
+
   const base = {
     id: widget.id,
     title: widget.title,
-    style: getWidgetGridStyle(widget),
-    listeners: {},
-  } satisfies Omit<WidgetViewModel, 'component' | 'props' | 'className'>;
+    position: widget.position,
+    minW: definition.minSize.minW,
+    minH: definition.minSize.minH,
+  } satisfies Pick<WidgetViewModel, 'id' | 'title' | 'position' | 'minW' | 'minH'>;
 
   switch (widget.type) {
     case 'kpi-cards':
@@ -167,6 +266,20 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
       };
   }
 }
+
+async function handleRemoveWidget(widgetId: string): Promise<void> {
+  const removedWidget = dashboard.removeWidget(widgetId);
+
+  if (!removedWidget) {
+    return;
+  }
+
+  if (auth.isDemo) {
+    return;
+  }
+
+  await dashboard.persistLayout();
+}
 </script>
 
 <template>
@@ -186,6 +299,33 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
 
             <div class="brand-subtitle">
               Tableau de bord analytique • API et SPA sur la même origine
+            </div>
+
+            <div class="brand-subactions">
+              <Button
+                v-if="canOpenWidgetCatalog"
+                icon="pi pi-plus"
+                label="Ajouter un widget"
+                size="small"
+                severity="secondary"
+                outlined
+                @click="openWidgetCatalog"
+              />
+
+              <span
+                v-else
+                v-tooltip.bottom="widgetCatalogDisabledMessage"
+                class="catalog-button-wrapper"
+              >
+                <Button
+                  icon="pi pi-plus"
+                  label="Ajouter un widget"
+                  size="small"
+                  severity="secondary"
+                  outlined
+                  disabled
+                />
+              </span>
             </div>
           </div>
         </div>
@@ -221,6 +361,14 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
       </template>
     </Toolbar>
 
+    <Sidebar
+      v-model:visible="isWidgetCatalogVisible"
+      position="left"
+      :style="{ width: '28rem', maxWidth: '100vw' }"
+    >
+      <WidgetCatalog :items="availableCatalogItems" @add-widget="handleAddWidget" />
+    </Sidebar>
+
     <div v-if="auth.isDemo" class="notice">
       <i class="pi pi-info-circle" />
       <span>
@@ -254,29 +402,12 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
           <span>Aucun widget n'est configuré sur ce tableau de bord.</span>
         </div>
 
-        <div v-else class="widgets-grid">
-          <div
-            v-for="widget in resolvedWidgets"
-            :key="widget.id"
-            class="widget-cell"
-            :class="widget.className"
-            :style="widget.style"
-          >
-            <component
-              v-if="widget.component"
-              :is="widget.component"
-              v-bind="widget.props"
-              v-on="widget.listeners"
-            />
-
-            <div v-else class="unsupported-widget">
-              <div class="unsupported-widget-title">{{ widget.title }}</div>
-              <div class="unsupported-widget-text">
-                Ce widget n'est pas encore disponible dans cette phase du tableau de bord.
-              </div>
-            </div>
-          </div>
-        </div>
+        <DashboardGrid
+          v-else
+          :widgets="resolvedWidgets"
+          @layout-change="handleLayoutChange"
+          @remove-widget="handleRemoveWidget"
+        />
       </div>
     </main>
   </div>
@@ -333,6 +464,17 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
 .brand-subtitle {
   font-size: 0.85rem;
   color: var(--p-text-muted-color);
+}
+
+.brand-subactions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.catalog-button-wrapper {
+  display: inline-flex;
 }
 
 .env-tag {
@@ -419,76 +561,6 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
   color: var(--p-red-500);
 }
 
-.widgets-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: minmax(120px, auto);
-  gap: 1rem;
-}
-
-.widget-cell {
-  min-height: 0;
-  grid-column: var(--widget-col-start) / span var(--widget-col-span);
-  grid-row: var(--widget-row-start) / span var(--widget-row-span);
-}
-
-.widget-kpis {
-  min-height: 200px;
-}
-
-.widget-trend {
-  min-height: 300px;
-}
-
-.widget-orders {
-  min-height: 400px;
-}
-
-.widget-products,
-.widget-realtime {
-  min-height: 300px;
-}
-
-.unsupported-widget {
-  display: flex;
-  height: 100%;
-  min-height: inherit;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  border: 1px dashed var(--p-content-border-color);
-  border-radius: 1rem;
-  background: var(--p-surface-card);
-}
-
-.unsupported-widget-title {
-  font-weight: 600;
-}
-
-.unsupported-widget-text {
-  color: var(--p-text-muted-color);
-}
-
-@media (max-width: 900px) {
-  .widget-cell {
-    grid-column: 1 / -1;
-    grid-row: auto;
-  }
-
-  .widget-kpis,
-  .widget-trend,
-  .widget-orders,
-  .widget-products,
-  .widget-realtime {
-    min-height: 300px;
-  }
-
-  .widget-orders {
-    min-height: 400px;
-  }
-}
-
 @media (max-width: 640px) {
   .brand-subtitle {
     display: none;
@@ -496,6 +568,10 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
 
   .user-chip {
     display: none;
+  }
+
+  .brand-subactions {
+    margin-top: 0.35rem;
   }
 }
 </style>

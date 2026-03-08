@@ -6,6 +6,7 @@ import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
 import './assets/main.css';
 import 'primeicons/primeicons.css';
+import 'gridstack/dist/gridstack.min.css';
 import { useTheme } from './composables/useTheme';
 
 import { initApiClient } from './api';

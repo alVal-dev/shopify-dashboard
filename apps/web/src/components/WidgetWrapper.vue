@@ -37,9 +37,15 @@ const contentClass = computed(() => ({
   <Card class="widget-wrapper">
     <template #header>
       <div class="widget-header">
-        <div class="widget-title">
-          <i v-if="icon" :class="icon" class="widget-icon" />
-          <span>{{ title }}</span>
+        <div class="widget-header-start">
+          <div class="widget-drag-handle" aria-hidden="true" title="Déplacer le widget">
+            <span class="widget-drag-handle-dots" />
+          </div>
+
+          <div class="widget-title">
+            <i v-if="icon" :class="icon" class="widget-icon" />
+            <span>{{ title }}</span>
+          </div>
         </div>
 
         <Button
@@ -101,12 +107,59 @@ const contentClass = computed(() => ({
   gap: 0.5rem;
 }
 
+.widget-header-start {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.widget-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  border: 1px solid var(--p-surface-border);
+  background: var(--p-surface-ground);
+  color: var(--p-text-muted-color);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.widget-drag-handle:active {
+  cursor: grabbing;
+}
+
+.widget-drag-handle-dots {
+  width: 0.2rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow:
+    0 0.4rem 0 currentColor,
+    0 0.8rem 0 currentColor,
+    0.4rem 0 0 currentColor,
+    0.4rem 0.4rem 0 currentColor,
+    0.4rem 0.8rem 0 currentColor;
+}
+
 .widget-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
   font-weight: 600;
   font-size: 0.95rem;
+}
+
+.widget-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .widget-icon {
