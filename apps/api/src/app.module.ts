@@ -14,6 +14,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import type { Response } from 'express';
 import { MockShopifyModule } from './mock-shopify/mock-shopify.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SseModule } from './sse/sse.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AuthModule,
     MockShopifyModule,
     DashboardModule,
+    SseModule,
   ],
   providers: [
     // Appliqué sur TOUTES les routes avant les autres guards
