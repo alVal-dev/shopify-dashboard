@@ -16,6 +16,6 @@ import { MockDataStoreModule } from './store/mock-data-store.module';
     AnalyticsGenerator,
     MockShopifyDataService,
   ],
-  exports: [MockShopifyDataService],
+  exports: [MockShopifyDataService, OrdersGenerator, AnalyticsGenerator],
 })
 export class MockShopifyDataModule {}

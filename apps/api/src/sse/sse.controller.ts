@@ -19,6 +19,7 @@ import type { Request, Response } from 'express';
 
 import { AuthGuard } from '../auth/auth.guard';
 import { SESSION_COOKIE_NAME } from '../auth/auth.constants';
+import { SseRealtimeSimulationService } from './sse-realtime-simulation.service';
 import { SseSessionRegistryService } from './sse-session-registry.service';
 
 const MAX_ACTIVE_SSE_CONNECTIONS_PER_IP = 10;
@@ -28,7 +29,10 @@ const MAX_ACTIVE_SSE_CONNECTIONS_PER_IP = 10;
 @Controller('sse')
 @UseGuards(AuthGuard)
 export class SseController {
-  constructor(private readonly registry: SseSessionRegistryService) {}
+  constructor(
+    private readonly registry: SseSessionRegistryService,
+    private readonly simulationService: SseRealtimeSimulationService,
+  ) {}
 
   @Get('events')
   @HttpCode(HttpStatus.OK)
@@ -50,7 +54,11 @@ export class SseController {
       return;
     }
 
-    const { runtime, connection } = this.registry.registerConnection(sessionId, ip);
+    const { runtime, connection, createdRuntime } = this.registry.registerConnection(sessionId, ip);
+
+    if (createdRuntime) {
+      this.simulationService.startForSession(sessionId);
+    }
 
     res.status(HttpStatus.OK);
     res.setHeader('Content-Type', 'text/event-stream');
@@ -75,7 +83,11 @@ export class SseController {
       res.removeListener('close', handleClose);
 
       subscription.unsubscribe();
-      this.registry.unregisterConnection(sessionId, connection.id);
+
+      const result = this.registry.unregisterConnection(sessionId, connection.id);
+      if (result.destroyedRuntime) {
+        this.simulationService.stopForSession(sessionId);
+      }
 
       if (!res.writableEnded) {
         res.end();
