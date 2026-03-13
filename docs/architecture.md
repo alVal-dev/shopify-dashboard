@@ -1,15 +1,3 @@
-# Architecture — Shopify Analytics Dashboard
-
-Dashboard analytics "Shopify-like" pour démo portfolio :
-
-- **SPA** Vue 3 (Pinia + Router) avec widgets, thème et layout personnalisable
-- **API** NestJS avec auth, endpoints mock et persistance du layout
-- **Temps réel** via SSE
-- **PostgreSQL** avec migrations et seed idempotent
-- **Déploiement** single origin (le backend sert le SPA)
-
----
-
 ## Décisions
 
 | Sujet       | Décision                           | Justification                                     |
@@ -58,6 +46,7 @@ flowchart LR
 - Vite sur port 5173
 - Proxy `/api` vers NestJS sur port 3000
 - PostgreSQL via Docker Compose
+- **Attention :** le proxy Vite n’est pas fiable pour valider la reconnexion SSE longue durée après coupure backend
 
 ---
 
@@ -72,6 +61,9 @@ flowchart LR
 │  │  │   Router    │  │   Pinia     │  │  Composables│  │   Vues      │   │  │
 │  │  │   Guards    │  │   Stores    │  │  useTheme   │  │  Login      │   │  │
 │  │  │             │  │  - auth     │  │  useSSE     │  │  Dashboard  │   │  │
+│  │  │             │  │  - orders   │  │             │  │             │   │  │
+│  │  │             │  │  - analytics│  │             │  │             │   │  │
+│  │  │             │  │  - dashboard│  │             │  │             │   │  │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │  │
 │  │                              │                                         │  │
 │  │                    ┌─────────┴─────────┐                               │  │
@@ -90,11 +82,11 @@ flowchart LR
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  AuthModule  │  │ HealthModule │  │  MockModule  │  │  SSEModule   │   │
+│  │  AuthModule  │  │ HealthModule │  │  MockModule  │  │  SseModule   │   │
 │  │              │  │              │  │              │  │              │   │
-│  │ - login      │  │ - /health    │  │ - orders     │  │ - events     │   │
-│  │ - logout     │  │              │  │ - products   │  │ - heartbeat  │   │
-│  │ - me         │  │              │  │ - analytics  │  │              │   │
+│  │ - login      │  │ - /health    │  │ - orders     │  │ - /sse/events│   │
+│  │ - logout     │  │              │  │ - products   │  │ - registry   │   │
+│  │ - me         │  │              │  │ - analytics  │  │ - simulation │   │
 │  │ - demo       │  │              │  │ - layout     │  │              │   │
 │  └──────┬───────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
 │         │                                                                   │
@@ -238,34 +230,58 @@ flowchart LR
 ### Flux 4 : SSE temps réel
 
 ```
-┌────────┐         ┌────────┐         ┌────────┐
-│Navigat.│         │ NestJS │         │Scheduler│
-└───┬────┘         └───┬────┘         └───┬────┘
-    │                  │                  │
-    │ GET /api/sse/events                │
-    │ Cookie: sessionId│                  │
-    │─────────────────►│                  │
-    │                  │                  │
-    │ ◄──── Connexion SSE ouverte ────   │
-    │                  │                  │
-    │                  │◄─────────────────│
-    │                  │ émet order.created
-    │◄─────────────────│                  │
-    │ event: order.created               │
-    │ data: {order...} │                  │
-    │                  │                  │
-    │                  │◄─────────────────│
-    │                  │ émet kpi.updated │
-    │◄─────────────────│                  │
-    │ event: kpi.updated                 │
-    │ data: {kpis...}  │                  │
-    │                  │                  │
-    │                  │◄─────────────────│
-    │                  │ émet heartbeat   │
-    │◄─────────────────│                  │
-    │ event: heartbeat │                  │
-    │                  │                  │
+┌────────┐         ┌─────────────┐         ┌─────────────────────┐
+│Navigat.│         │ NestJS SSE  │         │ Runtime de session  │
+└───┬────┘         └──────┬──────┘         └─────────┬───────────┘
+    │                     │                            │
+    │ GET /api/sse/events │                            │
+    │ Cookie: sessionId   │                            │
+    │────────────────────►│                            │
+    │                     │ validate session           │
+    │                     │ register connection        │
+    │                     │ create runtime if missing  │
+    │                     │ start simulation if first  │
+    │                     │───────────────────────────►│
+    │                     │                            │
+    │ ◄──── Connexion SSE ouverte ──────────────────── │
+    │                     │                            │
+    │                     │                            │ order.created (5-15s)
+    │                     │ ◄────────────────────────── │
+    │ ◄────────────────── │                            │
+    │ event: order.created│                            │
+    │ data: {order...}    │                            │
+    │                     │                            │
+    │                     │                            │ analytics.updated (30s)
+    │                     │ ◄────────────────────────── │
+    │ ◄────────────────── │                            │
+    │ event: analytics.updated                         │
+    │ data: {snapshot...} │                            │
+    │                     │                            │
+    │                     │                            │ stock.alert (45-90s, 30%)
+    │                     │ ◄────────────────────────── │
+    │ ◄────────────────── │                            │
+    │ event: stock.alert  │                            │
+    │ data: {alert...}    │                            │
+    │                     │                            │
+    │                     │                            │ heartbeat (30s)
+    │                     │ ◄────────────────────────── │
+    │ ◄────────────────── │                            │
+    │ event: heartbeat    │                            │
+    │ data: {sentAt...}   │                            │
 ```
+
+### Notes sur le flux SSE
+
+- diffusion **par `sessionId`**
+- un **runtime unique par session**
+- plusieurs onglets d’une même session partagent le même runtime
+- plusieurs connexions d’une même session restent comptées individuellement pour la limite IP
+- le frontend fait :
+  - **bootstrap REST d’abord**
+  - **puis ouverture SSE**
+- après reconnexion SSE :
+  - **resynchronisation REST** de `orders` et `analytics`
+- il n’y a **pas de replay** ni de `Last-Event-ID`
 
 ---
 
@@ -290,6 +306,8 @@ shopify-dashboard/
 │   │   │   ├── health/           # Health check
 │   │   │   ├── prisma/           # PrismaService
 │   │   │   ├── generated/        # Client Prisma
+│   │   │   ├── mock-shopify/     # Endpoints et générateurs mock
+│   │   │   ├── sse/              # Module SSE dédié
 │   │   │   ├── app.module.ts
 │   │   │   └── main.ts
 │   │   └── prisma.config.ts
@@ -299,9 +317,11 @@ shopify-dashboard/
 │       └── src/
 │           ├── api/              # Client Axios
 │           ├── assets/           # Styles
-│           ├── composables/      # useTheme
+│           ├── composables/      # useTheme, useSSE
+│           ├── components/       # Dashboard, widgets
 │           ├── router/           # Vue Router + guards
-│           ├── stores/           # Pinia (auth)
+│           ├── stores/           # Pinia
+│           ├── types/            # Types frontend locaux
 │           └── views/            # Login, Dashboard
 │
 ├── shared/
@@ -362,17 +382,52 @@ Server-Sent Events pour les mises à jour unidirectionnelles.
 
 ### Événements
 
-| Événement     | Intervalle   | Description           |
-| ------------- | ------------ | --------------------- |
-| order.created | 5-15s        | Nouvelle commande     |
-| kpi.updated   | 30s          | Rafraîchissement KPIs |
-| stock.alert   | 45-90s (30%) | Alerte stock bas      |
-| heartbeat     | 30s          | Keep-alive            |
+| Événement           | Intervalle   | Description                               |
+| ------------------- | ------------ | ----------------------------------------- |
+| `order.created`     | 5-15s        | Nouvelle commande mock dans la session    |
+| `analytics.updated` | 30s          | Snapshot analytics complet                |
+| `stock.alert`       | 45-90s (30%) | Alerte stock faible sur une variante      |
+| `heartbeat`         | 30s          | Keep-alive technique / santé de connexion |
+
+### Architecture de diffusion
+
+- module backend dédié : `SseModule`
+- registre mémoire par session : `sessionId -> runtime`
+- runtime partagé par session :
+  - connexions actives
+  - timers de simulation
+  - flux SSE de session
+- fan-out vers tous les onglets de la même session
+- cleanup au départ de la dernière connexion
+- cleanup global au shutdown serveur
 
 ### Limites
 
-- Maximum 5 connexions SSE par IP
-- Retourne 204 si limite atteinte (évite la boucle de retry EventSource)
+- maximum **10 connexions SSE actives par IP**
+- réponse **204 No Content** si limite atteinte
+- protection par `AuthGuard`
+- sessions démo autorisées
+
+### Contrat frontend
+
+- `DashboardView.vue` fait d’abord le bootstrap REST
+- puis ouvre le SSE via `useSSE`
+- `useSSE` est un wrapper technique pur :
+  - parsing typé
+  - état de connexion
+  - reconnexion avec backoff
+  - watchdog
+- après reconnexion réussie :
+  - refetch REST de `orders`
+  - refetch REST de `analytics`
+
+### Politique de flux
+
+- **REST = source de vérité initiale et de resynchronisation**
+- **SSE = flux live non rejoué**
+- pas de replay
+- pas de `Last-Event-ID`
+- le feed temps réel est **best-effort**, local au dashboard et non exhaustif
 
 ---
 
@@ -404,6 +459,7 @@ Voir `docs/security.md` pour les détails.
 | Sessions        | TTL 24h, lazy delete, CRON cleanup      |
 | Rate limiting   | 300 req/min/IP global                   |
 | Endpoints auth  | 10 req/min/IP                           |
+| SSE             | AuthGuard + 10 connexions actives/IP    |
 | Trust proxy     | Configurable via `TRUST_PROXY_HOPS`     |
 | Validation      | class-validator + ValidationPipe        |
 | Messages erreur | Génériques sur login (anti-énumération) |
@@ -465,7 +521,3 @@ Un seul processus sert SPA + API + SSE.
 - Sécurité : `docs/security.md`
 - ADRs : `docs/adr/`
 - Spikes : `docs/spikes/`
-
-```
-
-```

@@ -4,6 +4,8 @@
 
 L’API REST est servie par NestJS sous le préfixe `/api`. Les réponses sont en JSON.
 
+Le flux SSE est également servi sous le préfixe `/api`, sur le même origin que l’API REST en production.
+
 **Base URL**
 
 - Développement : `http://localhost:3000/api`
@@ -28,6 +30,7 @@ La plupart des endpoints renvoient un wrapper :
 Exception actuelle :
 
 - `GET /api/health` retourne un objet simple sans wrapper.
+- `GET /api/sse/events` ouvre un flux SSE et ne suit pas le format `ApiResponse<T>`.
 
 ### Gestion des erreurs
 
@@ -106,6 +109,7 @@ L’API utilise `@nestjs/throttler`.
 - Le throttling global et auth est basé sur l’IP.
 - Le throttling de sauvegarde du layout est basé sur le `sessionId`.
 - `PUT /api/dashboard/layout` renvoie des headers de rate limiting (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) et `Retry-After` en cas de blocage.
+- Le SSE conserve le throttling global normal, **mais ajoute aussi une limite dédiée de 10 connexions actives par IP**.
 
 Exemple 429 :
 
@@ -374,22 +378,14 @@ Réponse 200 :
 {
   "data": {
     "kpis": {
-      "revenue": {
-        "valueCents": 5415072,
-        "deltaPercent": 12.4
-      },
-      "orders": {
-        "value": 128,
-        "deltaPercent": 8.1
-      },
-      "averageOrderValue": {
-        "valueCents": 42305,
-        "deltaPercent": -1.8
-      },
-      "customers": {
-        "value": 80,
-        "deltaPercent": 5.2
-      }
+      "revenueCents": 5415072,
+      "revenueChange": 12,
+      "ordersCount": 128,
+      "ordersCountChange": 8,
+      "averageOrderValueCents": 42305,
+      "averageOrderValueChange": -2,
+      "customersCount": 80,
+      "customersCountChange": 5
     },
     "salesTrend": [],
     "topProducts": []
@@ -520,6 +516,115 @@ Erreurs possibles :
 
 ---
 
+## Server-Sent Events (SSE)
+
+Le dashboard consomme un flux temps réel via SSE (Server-Sent Events).
+
+## `GET /api/sse/events`
+
+Ouvre un flux SSE authentifié.
+
+- **Authentification** : requise
+- **Cookie requis** : `sessionId`
+- **Rate limit** : throttling global normal + **limite dédiée de 10 connexions SSE actives par IP**
+- **Sessions démo** : autorisées
+- **Content-Type** : `text/event-stream`
+
+### Comportement
+
+- le flux reste ouvert tant que le client est connecté ;
+- plusieurs onglets d’une même session sont autorisés ;
+- les connexions SSE sont comptées individuellement dans la limite IP ;
+- si la limite de **10 connexions actives par IP** est atteinte, le serveur répond **204 No Content** et n’ouvre pas le flux ;
+- il n’y a **pas de replay** des événements manqués ;
+- il n’y a **pas de support `Last-Event-ID`**.
+
+### Règle de cohérence
+
+- **REST = source de vérité initiale et de resynchronisation**
+- **SSE = flux live non rejoué**
+
+En pratique :
+
+- le frontend charge d’abord l’état initial via REST ;
+- puis ouvre le flux SSE ;
+- après reconnexion SSE, le frontend peut relancer des appels REST pour se resynchroniser.
+
+### Événements émis
+
+#### `order.created`
+
+Payload : `Order`
+
+Exemple :
+
+```txt
+event: order.created
+data: {"id":"...","orderNumber":1452,"customerId":"...","email":"client@example.com","customerName":"Jean Dupont","totalPriceCents":12900,"currency":"EUR","financialStatus":"paid","fulfillmentStatus":"fulfilled","lineItems":[...],"shippingCity":"Paris","shippingCountry":"France","createdAt":"2026-03-12T10:12:00.000Z"}
+```
+
+#### `analytics.updated`
+
+Payload : `AnalyticsSnapshot`
+
+Exemple :
+
+```txt
+event: analytics.updated
+data: {"kpis":{"revenueCents":5421000,"revenueChange":12,"ordersCount":131,"ordersCountChange":8,"averageOrderValueCents":41382,"averageOrderValueChange":-2,"customersCount":82,"customersCountChange":5},"salesTrend":[...],"topProducts":[...]}
+```
+
+#### `stock.alert`
+
+Payload :
+
+```json
+{
+  "id": "uuid",
+  "productId": "uuid",
+  "variantId": "uuid",
+  "productTitle": "T-shirt Oversize",
+  "variantTitle": "Noir / L",
+  "sku": "TEE-OVR-BLK-L",
+  "inventoryQuantity": 3,
+  "threshold": 5,
+  "occurredAt": "2026-03-12T10:14:00.000Z"
+}
+```
+
+Exemple :
+
+```txt
+event: stock.alert
+data: {"id":"...","productId":"...","variantId":"...","productTitle":"T-shirt Oversize","variantTitle":"Noir / L","sku":"TEE-OVR-BLK-L","inventoryQuantity":3,"threshold":5,"occurredAt":"2026-03-12T10:14:00.000Z"}
+```
+
+#### `heartbeat`
+
+Payload :
+
+```json
+{
+  "sentAt": "2026-03-12T10:15:00.000Z"
+}
+```
+
+Exemple :
+
+```txt
+event: heartbeat
+data: {"sentAt":"2026-03-12T10:15:00.000Z"}
+```
+
+### Erreurs / cas particuliers
+
+| Status | Description                                      |
+| ------ | ------------------------------------------------ |
+| 401    | Session invalide ou absente                      |
+| 204    | Limite de connexions SSE actives par IP atteinte |
+
+---
+
 ## Types partagés (référence)
 
 ### `AuthUser`
@@ -620,6 +725,27 @@ curl -X PUT http://localhost:3000/api/dashboard/layout \
   -d '{"widgets":[{"id":"kpi-1","type":"kpi-cards","title":"Indicateurs clés","position":{"x":0,"y":0,"w":6,"h":2}}]}'
 ```
 
+### Ouvrir le flux SSE
+
+```bash
+curl -N http://localhost:3000/api/sse/events \
+  -b cookies.txt
+```
+
+### Vérifier la limite 10/IP
+
+```bash
+for i in $(seq 1 10); do
+  curl -N http://localhost:3000/api/sse/events -b cookies.txt > /dev/null &
+done
+
+curl -i -N http://localhost:3000/api/sse/events -b cookies.txt
+```
+
+Attendu pour la dernière connexion :
+
+- `204 No Content`
+
 ### Logout
 
 ```bash
@@ -638,4 +764,6 @@ for i in $(seq 1 6); do
     -b cookies.txt \
     -d '{"widgets":[{"id":"kpi-1","type":"kpi-cards","title":"Indicateurs clés","position":{"x":0,"y":0,"w":6,"h":2}}]}'
 done
+
+
 ```
