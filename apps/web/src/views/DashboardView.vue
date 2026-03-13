@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, type Component } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import { useRouter } from 'vue-router';
-import type { FinancialStatus, WidgetConfig, WidgetType } from '@shared/types';
+import type {
+  FinancialStatus,
+  Order,
+  ParsedSseEvent,
+  StockAlertEventPayload,
+  WidgetConfig,
+  WidgetType,
+} from '@shared/types';
 import type { OrdersSortBy } from '../api/query';
 
 import Toolbar from 'primevue/toolbar';
@@ -17,6 +24,9 @@ import { useDashboardStore } from '../stores/dashboard';
 import { useOrdersStore } from '../stores/orders';
 import { useAnalyticsStore } from '../stores/analytics';
 import { useTheme } from '../composables/useTheme';
+import { useSSE } from '../composables/useSSE';
+import type { DashboardGridItemState } from '../composables/useDashboardGrid';
+import type { RealtimeFeedItem } from '../types/realtime-feed';
 
 import DashboardGrid from '../components/DashboardGrid.vue';
 import WidgetCatalog from '../components/WidgetCatalog.vue';
@@ -24,7 +34,7 @@ import KpiCardWidget from '../components/widgets/KpiCardWidget.vue';
 import RevenueTrendWidget from '../components/widgets/RevenueTrendWidget.vue';
 import OrdersTableWidget from '../components/widgets/OrdersTableWidget.vue';
 import TopProductsWidget from '../components/widgets/TopProductsWidget.vue';
-import type { DashboardGridItemState } from '../composables/useDashboardGrid';
+import RealtimeFeedWidget from '../components/widgets/RealtimeFeedWidget.vue';
 import { getDashboardWidgetDefinition } from '../config/dashboard-widgets';
 
 const vTooltip = Tooltip;
@@ -55,6 +65,8 @@ type LayoutChangePayload = {
   currentItems: DashboardGridItemState[];
 };
 
+const MAX_REALTIME_FEED_ITEMS = 20;
+
 const WIDGET_CATALOG_ITEMS: readonly WidgetCatalogItem[] = [
   {
     type: 'kpi-cards',
@@ -83,7 +95,7 @@ const WIDGET_CATALOG_ITEMS: readonly WidgetCatalogItem[] = [
   {
     type: 'realtime-feed',
     title: 'Flux temps réel',
-    description: 'Activité en direct de la boutique. Affiché en placeholder dans cette phase.',
+    description: 'Activité en direct de la boutique.',
     icon: 'pi pi-bolt',
   },
 ];
@@ -94,8 +106,17 @@ const dashboard = useDashboardStore();
 const orders = useOrdersStore();
 const analytics = useAnalyticsStore();
 const theme = useTheme();
+const sse = useSSE();
 
 const isWidgetCatalogVisible = ref(false);
+const hasSeenInitialSseConnection = ref(false);
+const shouldResyncOnNextConnected = ref(false);
+const isResyncingAfterReconnect = ref(false);
+const isSseOrdersRefreshInFlight = ref(false);
+const realtimeFeedItems = ref<RealtimeFeedItem[]>([]);
+
+let isViewActive = true;
+let unsubscribeSseEvents: (() => void) | null = null;
 
 const userEmail = computed(() => auth.user?.email ?? '');
 const envLabel = computed(() => (auth.isDemo ? 'Démo publique' : 'Session utilisateur'));
@@ -103,6 +124,28 @@ const envSeverity = computed(() => (auth.isDemo ? 'warning' : 'success'));
 
 const themeIcon = computed(() => (theme.isDark.value ? 'pi pi-sun' : 'pi pi-moon'));
 const themeLabel = computed(() => (theme.isDark.value ? 'Clair' : 'Sombre'));
+
+const sseStatusLabel = computed(() => {
+  switch (sse.status.value) {
+    case 'connected':
+      return 'Temps réel connecté';
+    case 'reconnecting':
+      return 'Reconnexion...';
+    case 'disconnected':
+      return 'Temps réel déconnecté';
+  }
+});
+
+const sseStatusSeverity = computed(() => {
+  switch (sse.status.value) {
+    case 'connected':
+      return 'success' as const;
+    case 'reconnecting':
+      return 'warning' as const;
+    case 'disconnected':
+      return 'danger' as const;
+  }
+});
 
 const resolvedWidgets = computed<WidgetViewModel[]>(() =>
   dashboard.orderedWidgets.map((widget) => buildWidgetViewModel(widget)),
@@ -133,11 +176,147 @@ const widgetCatalogDisabledMessage = computed(() => {
   return 'Tous les widgets disponibles sont déjà présents dans le tableau de bord.';
 });
 
-onMounted(() => {
-  dashboard.load();
+onMounted(async () => {
+  unsubscribeSseEvents = sse.onEvent((event) => {
+    void handleSseEvent(event);
+  });
+
+  await dashboard.load();
+
+  if (!isViewActive) {
+    return;
+  }
+
+  sse.start();
 });
 
+onBeforeUnmount(() => {
+  isViewActive = false;
+  unsubscribeSseEvents?.();
+  unsubscribeSseEvents = null;
+  sse.stop();
+});
+
+watch(
+  () => sse.status.value,
+  async (nextStatus) => {
+    if (!isViewActive) {
+      return;
+    }
+
+    if (nextStatus === 'reconnecting' && hasSeenInitialSseConnection.value) {
+      shouldResyncOnNextConnected.value = true;
+      return;
+    }
+
+    if (nextStatus !== 'connected') {
+      return;
+    }
+
+    if (!hasSeenInitialSseConnection.value) {
+      hasSeenInitialSseConnection.value = true;
+      shouldResyncOnNextConnected.value = false;
+      return;
+    }
+
+    if (!shouldResyncOnNextConnected.value) {
+      return;
+    }
+
+    shouldResyncOnNextConnected.value = false;
+    await resyncAfterReconnect();
+  },
+);
+
+async function resyncAfterReconnect(): Promise<void> {
+  if (isResyncingAfterReconnect.value) {
+    return;
+  }
+
+  isResyncingAfterReconnect.value = true;
+
+  try {
+    const results = await Promise.allSettled([orders.fetch(), analytics.fetch()]);
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const source = index === 0 ? 'orders' : 'analytics';
+        console.error(`[DashboardView] Échec de la resynchronisation ${source} :`, result.reason);
+      }
+    });
+  } finally {
+    isResyncingAfterReconnect.value = false;
+  }
+}
+
+async function handleSseEvent(event: ParsedSseEvent): Promise<void> {
+  switch (event.type) {
+    case 'order.created':
+      pushOrderCreatedToFeed(event.payload);
+      await refreshOrdersFromSse();
+      return;
+
+    case 'analytics.updated':
+      analytics.setSnapshot(event.payload);
+      return;
+
+    case 'stock.alert':
+      pushStockAlertToFeed(event.payload);
+      return;
+
+    case 'heartbeat':
+      return;
+  }
+}
+
+function pushOrderCreatedToFeed(order: Order): void {
+  const nextItem: RealtimeFeedItem = {
+    id: `order-created-${order.id}`,
+    kind: 'order.created',
+    occurredAt: order.createdAt,
+    order,
+  };
+
+  realtimeFeedItems.value = [nextItem, ...realtimeFeedItems.value].slice(
+    0,
+    MAX_REALTIME_FEED_ITEMS,
+  );
+}
+
+function pushStockAlertToFeed(alert: StockAlertEventPayload): void {
+  const nextItem: RealtimeFeedItem = {
+    id: `stock-alert-${alert.id}`,
+    kind: 'stock.alert',
+    occurredAt: alert.occurredAt,
+    alert,
+  };
+
+  realtimeFeedItems.value = [nextItem, ...realtimeFeedItems.value].slice(
+    0,
+    MAX_REALTIME_FEED_ITEMS,
+  );
+}
+
+async function refreshOrdersFromSse(): Promise<void> {
+  if (isSseOrdersRefreshInFlight.value) {
+    return;
+  }
+
+  isSseOrdersRefreshInFlight.value = true;
+
+  try {
+    await orders.fetch();
+  } catch (error) {
+    console.error('[DashboardView] Échec du rafraîchissement orders après order.created :', error);
+  } finally {
+    isSseOrdersRefreshInFlight.value = false;
+  }
+}
+
 async function handleLogout(): Promise<void> {
+  unsubscribeSseEvents?.();
+  unsubscribeSseEvents = null;
+  sse.stop();
   await auth.logout();
   await router.replace('/login');
 }
@@ -260,9 +439,11 @@ function buildWidgetViewModel(widget: WidgetConfig): WidgetViewModel {
     case 'realtime-feed':
       return {
         ...base,
-        component: null,
+        component: RealtimeFeedWidget,
         className: 'widget-realtime',
-        props: {},
+        props: {
+          items: realtimeFeedItems.value,
+        },
       };
   }
 }
@@ -339,7 +520,7 @@ async function handleRemoveWidget(widgetId: string): Promise<void> {
               <span class="user-email">{{ userEmail }}</span>
             </span>
           </Chip>
-
+          <Tag :value="sseStatusLabel" :severity="sseStatusSeverity" class="sse-status-tag" />
           <Divider layout="vertical" class="v-divider" />
 
           <Button
@@ -572,6 +753,9 @@ async function handleRemoveWidget(widgetId: string): Promise<void> {
 
   .brand-subactions {
     margin-top: 0.35rem;
+  }
+  .sse-status-tag {
+    font-size: 0.75rem;
   }
 }
 </style>
