@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
-import type { KpiMetrics, Order, Product, SalesTrend, TopProduct } from '@shared/types';
+import type {
+  AnalyticsSnapshot,
+  KpiMetrics,
+  Order,
+  Product,
+  SalesTrend,
+  TopProduct,
+} from '@shared/types';
 
 export interface ComputeAnalyticsOptions {
   now?: Date;
@@ -8,13 +15,6 @@ export interface ComputeAnalyticsOptions {
   trendDays?: number; // default 30 (includes today)
   topProductsLimit?: number; // default 5
 }
-
-export interface AnalyticsSnapshot {
-  kpis: KpiMetrics;
-  salesTrend: SalesTrend;
-  topProducts: TopProduct[];
-}
-
 @Injectable()
 export class AnalyticsGenerator {
   compute(
