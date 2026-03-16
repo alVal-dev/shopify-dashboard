@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Tag from 'primevue/tag';
 import Select from 'primevue/select';
+import Button from 'primevue/button';
 import type { DataTablePageEvent, DataTableSortEvent } from 'primevue/datatable';
 import type { FinancialStatus, Order } from '@shared/types';
 import type { OrdersSortBy } from '../../api/query';
 
 import WidgetWrapper from '../WidgetWrapper.vue';
+import { exportOrdersCsv } from '../../api/export';
 import { formatCurrency } from '../../utils/format';
 
 interface Props {
@@ -62,6 +64,9 @@ const statusConfig = {
   cancelled: { label: 'Annulée', severity: 'danger' },
 } satisfies Record<FinancialStatus, { label: string; severity: string }>;
 
+const isExporting = ref(false);
+const exportError = ref<string | null>(null);
+
 function isOrdersSortBy(value: string): value is OrdersSortBy {
   return ORDERS_SORT_FIELDS.some((field) => field === value);
 }
@@ -114,6 +119,24 @@ function onSort(event: DataTableSortEvent) {
 function onStatusChange(status: FinancialStatus | null) {
   emit('status-change', status);
 }
+
+async function onExportClick(): Promise<void> {
+  if (isExporting.value) {
+    return;
+  }
+
+  exportError.value = null;
+  isExporting.value = true;
+
+  try {
+    await exportOrdersCsv();
+  } catch (error) {
+    console.error('[OrdersTableWidget] Erreur lors de l’export CSV des commandes :', error);
+    exportError.value = 'Impossible de télécharger le fichier CSV.';
+  } finally {
+    isExporting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -130,6 +153,17 @@ function onStatusChange(status: FinancialStatus | null) {
 
     <template v-else>
       <div class="table-header">
+        <Button
+          icon="pi pi-download"
+          label="Exporter CSV"
+          size="small"
+          severity="secondary"
+          outlined
+          :loading="isExporting"
+          :disabled="isExporting"
+          @click="onExportClick"
+        />
+
         <Select
           :model-value="currentStatus"
           :options="statusOptions"
@@ -139,6 +173,11 @@ function onStatusChange(status: FinancialStatus | null) {
           class="status-filter"
           @update:model-value="onStatusChange"
         />
+      </div>
+
+      <div v-if="exportError" class="export-error">
+        <i class="pi pi-exclamation-circle" />
+        <span>{{ exportError }}</span>
       </div>
 
       <div v-if="!hasData && !loading" class="empty-state">
@@ -221,12 +260,25 @@ function onStatusChange(status: FinancialStatus | null) {
 
 .table-header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   margin-bottom: 0.75rem;
 }
 
 .status-filter {
   width: 180px;
+  max-width: 100%;
+}
+
+.export-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--p-red-500);
+  font-size: 0.875rem;
 }
 
 .orders-table {
