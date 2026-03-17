@@ -29,9 +29,9 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Supprime les propriétés non déclarées dans le DTO
-      forbidNonWhitelisted: true, // Retourne 400 si propriétés inconnues
-      transform: true, // Transforme le body en instance de la classe DTO
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
     }),
   );
 
@@ -46,7 +46,8 @@ async function bootstrap() {
   }
 
   const port = configService.get<number>('PORT', 3000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
+  app.get(Logger).log(`API listening on port ${port}`, 'Bootstrap');
 }
 
 bootstrap();
