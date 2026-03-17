@@ -12,3 +12,5 @@ dist/
 
 # Test files
 cookies.txt
+playwright-report/
+test-results/

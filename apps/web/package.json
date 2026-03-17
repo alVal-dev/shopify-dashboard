@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --build"
+    "typecheck": "vue-tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@primeuix/themes": "^2.0.3",
@@ -26,10 +28,13 @@
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
     "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^29.0.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.6",
+    "vitest": "^4.1.0",
     "vue-tsc": "^3.2.4"
   }
 }
