@@ -104,7 +104,6 @@ async function handleLogin(): Promise<void> {
               toggle-mask
               fluid
             />
-            <pre>email="{{ email }}" password="{{ password }}"</pre>
           </div>
 
           <Button

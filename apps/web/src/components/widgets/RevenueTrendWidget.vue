@@ -20,17 +20,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { theme } = useEchartsTheme();
 
-/**
- * Formate une date ISO (YYYY-MM-DD) en format court (DD/MM)
- */
 function formatDateShort(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-');
+  const [, month, day] = isoDate.split('-');
   return `${day}/${month}`;
 }
 
-/**
- * Formate une date ISO en format long pour le tooltip (D MMM YYYY)
- */
 function formatDateLong(isoDate: string): string {
   const date = new Date(isoDate);
   return new Intl.DateTimeFormat('fr-FR', {
@@ -40,9 +34,6 @@ function formatDateLong(isoDate: string): string {
   }).format(date);
 }
 
-/**
- * Formate l'axe Y (euros sans centimes)
- */
 function formatAxisValue(value: number): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
@@ -59,9 +50,17 @@ const chartOption = computed<EChartsOption>(() => {
 
   return {
     ...theme.value.option,
+    grid: {
+      ...(theme.value.option.grid as object),
+      bottom: 28,
+    },
     xAxis: {
       ...theme.value.option.xAxis,
       data: dates,
+      axisLabel: {
+        ...(theme.value.option.xAxis as any)?.axisLabel,
+        hideOverlap: true,
+      },
     },
     yAxis: {
       ...theme.value.option.yAxis,
@@ -91,10 +90,17 @@ const chartOption = computed<EChartsOption>(() => {
         name: "Chiffre d'affaires",
         data: revenues,
         smooth: true,
-        symbol: 'none',
+        symbol: 'circle',
+        showSymbol: false,
+        symbolSize: 8,
         lineStyle: {
           width: 2,
           color: primaryColor,
+        },
+        itemStyle: {
+          color: primaryColor,
+          borderColor: '#ffffff',
+          borderWidth: 2,
         },
         areaStyle: {
           color: {

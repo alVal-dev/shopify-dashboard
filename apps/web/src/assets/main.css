@@ -18,3 +18,34 @@ body {
     Arial,
     sans-serif;
 }
+:root {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Arial,
+    sans-serif;
+}
+
+html,
+body {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Arial,
+    sans-serif;
+}
+
+/* ─── Light theme: page background distinct from card surfaces ─── */
+html:not(.dark) {
+  --p-surface-ground: #f3f4f6;
+}
+
+/* ─── Keyboard focus visible ─── */
+:focus-visible {
+  outline: 2px solid var(--p-primary-color, #3b82f6);
+  outline-offset: 2px;
+}

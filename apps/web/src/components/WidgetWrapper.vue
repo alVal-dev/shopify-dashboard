@@ -80,6 +80,9 @@ const contentClass = computed(() => ({
   display: flex;
   flex-direction: column;
   border: 1px solid var(--p-surface-border);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.05),
+    0 1px 2px -1px rgb(0 0 0 / 0.05);
 }
 
 .widget-wrapper :deep(.p-card-body) {
@@ -87,11 +90,17 @@ const contentClass = computed(() => ({
   display: flex;
   flex-direction: column;
   padding: 0;
+  min-height: 0;
 }
 
 .widget-wrapper :deep(.p-card-header) {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--p-surface-border);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--p-surface-card);
 }
 
 .widget-wrapper :deep(.p-card-content) {
@@ -174,6 +183,7 @@ const contentClass = computed(() => ({
 
 .widget-content--scrollable {
   overflow: auto;
+  height: 100%;
 }
 
 .widget-skeleton {

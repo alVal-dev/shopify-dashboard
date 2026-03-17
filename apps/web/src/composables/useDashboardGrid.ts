@@ -8,7 +8,7 @@ import {
 import type { WidgetPosition } from '@shared/types';
 
 const DEFAULT_CELL_HEIGHT_PX = 150;
-const DEFAULT_MARGIN_PX = 8;
+const DEFAULT_MARGIN_PX = 20;
 const DEFAULT_MOBILE_BREAKPOINT_PX = 768;
 
 export interface DashboardGridItemState extends WidgetPosition {
@@ -167,7 +167,7 @@ function buildGridStackOptions(options: DashboardGridOptions): GridStackOptions 
     float: false,
     animate: true,
     cellHeight: options.cellHeight ?? DEFAULT_CELL_HEIGHT_PX,
-    margin: options.margin ?? DEFAULT_MARGIN_PX,
+    margin: DEFAULT_MARGIN_PX,
     columnOpts: {
       breakpointForWindow: true,
       breakpoints: [{ w: options.mobileBreakpoint ?? DEFAULT_MOBILE_BREAKPOINT_PX, c: 1 }],

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { RealtimeFeedItem } from '../../types/realtime-feed';
+import WidgetWrapper from '../WidgetWrapper.vue';
 
 const props = defineProps<{
   items: RealtimeFeedItem[];
@@ -52,7 +53,7 @@ function buildItemMeta(item: RealtimeFeedItem): string {
 </script>
 
 <template>
-  <div class="feed-widget">
+  <WidgetWrapper title="Flux temps réel" icon="pi pi-bolt" :scrollable="true">
     <div v-if="!hasItems" class="feed-empty">
       <i class="pi pi-bolt" />
       <span>Aucune activité temps réel pour le moment.</span>
@@ -76,23 +77,16 @@ function buildItemMeta(item: RealtimeFeedItem): string {
         </div>
       </li>
     </ul>
-  </div>
+  </WidgetWrapper>
 </template>
 
 <style scoped>
-.feed-widget {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .feed-empty {
-  flex: 1;
-  min-height: 0;
   display: grid;
   place-items: center;
   gap: 0.5rem;
+  height: 100%;
+  min-height: 120px;
   text-align: center;
   color: var(--p-text-muted-color);
 }
@@ -109,7 +103,6 @@ function buildItemMeta(item: RealtimeFeedItem): string {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  overflow: auto;
 }
 
 .feed-item {

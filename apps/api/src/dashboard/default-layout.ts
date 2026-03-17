@@ -6,13 +6,13 @@ export const DEFAULT_LAYOUT = {
       id: 'kpi-1',
       type: 'kpi-cards',
       title: 'Indicateurs clés',
-      position: { x: 0, y: 0, w: 6, h: 2 },
+      position: { x: 0, y: 0, w: 6, h: 3 },
     },
     {
       id: 'trend-1',
       type: 'revenue-trend',
       title: "Tendance du chiffre d'affaires",
-      position: { x: 6, y: 0, w: 6, h: 2 },
+      position: { x: 6, y: 0, w: 6, h: 3 },
     },
     {
       id: 'orders-1',
