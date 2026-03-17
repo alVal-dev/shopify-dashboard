@@ -15,6 +15,16 @@ export default [
   ...tseslint.configs.recommended,
 
   {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
+  {
     files: ['apps/api/**/*.ts'],
     languageOptions: {
       globals: {
