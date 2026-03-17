@@ -17,7 +17,7 @@ type ApiClientOptions = {
 
 export function createApiClient({ router }: ApiClientOptions): AxiosInstance {
   const client = axios.create({
-    baseURL: '/api',
+    baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
     withCredentials: true,
     headers: {
       'Content-Type': 'application/json',
@@ -37,7 +37,6 @@ export function createApiClient({ router }: ApiClientOptions): AxiosInstance {
 
       if (status === 401 && !silent401) {
         const currentPath = router.currentRoute.value.fullPath;
-
         // Evite redirect loop / pollution historique
         if (!currentPath.startsWith('/login')) {
           await router.replace({ path: '/login' });
