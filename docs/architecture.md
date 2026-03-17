@@ -15,7 +15,7 @@
 | Seed        | Idempotent (upsert)                | Rejouable en sandbox publique                     |
 | Déploiement | Backend sert le SPA                | Pas de CORS, cookies + SSE simplifiés             |
 
-Voir `docs/adr/` pour les détails (notamment ADR-002 et ADR-004).
+Voir `docs/adr/` pour les détails (notamment ADR-002, ADR-003 et ADR-004).
 
 ---
 
@@ -82,8 +82,8 @@ flowchart LR
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  AuthModule  │  │ HealthModule │  │  MockModule  │  │  SseModule   │   │
-│  │              │  │              │  │              │  │              │   │
+│  │  AuthModule  │  │ HealthModule │  │  MockShopify │  │  SseModule   │   │
+│  │              │  │              │  │    Module    │  │              │   │
 │  │ - login      │  │ - /health    │  │ - orders     │  │ - /sse/events│   │
 │  │ - logout     │  │              │  │ - products   │  │ - registry   │   │
 │  │ - me         │  │              │  │ - analytics  │  │ - simulation │   │
@@ -119,7 +119,7 @@ flowchart LR
 
 ## Flux principaux
 
-### Flux 1 : Authentification (session cookie HttpOnly)
+### Flux 1 : Authentification par session (exemple : login email/password)
 
 ```
 ┌────────┐         ┌────────┐         ┌────────┐         ┌────────┐
@@ -303,10 +303,12 @@ shopify-dashboard/
 │   │   │   │   └── session-cleanup.service.ts
 │   │   │   ├── common/           # Filtres, guards
 │   │   │   ├── config/           # Config Swagger
+|   │   │   ├── dashboard/        # Layout dashboard
 │   │   │   ├── health/           # Health check
 │   │   │   ├── prisma/           # PrismaService
 │   │   │   ├── generated/        # Client Prisma
 │   │   │   ├── mock-shopify/     # Endpoints et générateurs mock
+|   │   │   ├── export/           # Export CSV
 │   │   │   ├── sse/              # Module SSE dédié
 │   │   │   ├── app.module.ts
 │   │   │   └── main.ts
@@ -318,6 +320,7 @@ shopify-dashboard/
 │           ├── api/              # Client Axios
 │           ├── assets/           # Styles
 │           ├── composables/      # useTheme, useSSE
+│           ├── config/           # Définitions de widgets / config UI
 │           ├── components/       # Dashboard, widgets
 │           ├── router/           # Vue Router + guards
 │           ├── stores/           # Pinia
@@ -521,3 +524,4 @@ Un seul processus sert SPA + API + SSE.
 - Sécurité : `docs/security.md`
 - ADRs : `docs/adr/`
 - Spikes : `docs/spikes/`
+- Tests : `docs/testing.md`

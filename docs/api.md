@@ -42,7 +42,9 @@ Exemple (401) :
 {
   "statusCode": 401,
   "message": "Unauthorized",
-  "timestamp": "2025-01-15T10:30:00.000Z"
+  "error": "UnauthorizedException",
+  "timestamp": "2025-01-15T10:30:00.000Z",
+  "path": "/api/auth/me"
 }
 ```
 
@@ -116,7 +118,10 @@ Exemple 429 :
 ```json
 {
   "statusCode": 429,
-  "message": "ThrottlerException: Too Many Requests"
+  "message": "ThrottlerException: Too Many Requests",
+  "error": "ThrottlerException",
+  "timestamp": "2025-01-15T10:30:00.000Z",
+  "path": "/api/dashboard/layout"
 }
 ```
 
@@ -160,7 +165,7 @@ Réponse 200 :
 {
   "data": {
     "id": "uuid",
-    "email": "demo@example.com",
+    "email": "demo@shopify-dashboard.com",
     "role": "demo"
   }
 }
@@ -296,13 +301,11 @@ Réponse 200 :
 ```json
 {
   "data": {
-    "items": [],
-    "meta": {
-      "page": 1,
-      "limit": 10,
-      "total": 80,
-      "totalPages": 8
-    }
+    "data": [],
+    "total": 80,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 8
   }
 }
 ```
@@ -323,13 +326,11 @@ Réponse 200 :
 ```json
 {
   "data": {
-    "items": [],
-    "meta": {
-      "page": 1,
-      "limit": 10,
-      "total": 24,
-      "totalPages": 3
-    }
+    "data": [],
+    "total": 24,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
   }
 }
 ```
@@ -350,13 +351,11 @@ Réponse 200 :
 ```json
 {
   "data": {
-    "items": [],
-    "meta": {
-      "page": 1,
-      "limit": 10,
-      "total": 80,
-      "totalPages": 8
-    }
+    "data": [],
+    "total": 80,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 8
   }
 }
 ```
@@ -423,7 +422,7 @@ Réponse 200 :
           "x": 0,
           "y": 0,
           "w": 6,
-          "h": 2
+          "h": 3
         }
       },
       {
@@ -434,7 +433,29 @@ Réponse 200 :
           "x": 6,
           "y": 0,
           "w": 6,
-          "h": 2
+          "h": 3
+        }
+      },
+      {
+        "id": "orders-1",
+        "type": "orders-table",
+        "title": "Commandes récentes",
+        "position": {
+          "x": 0,
+          "y": 2,
+          "w": 6,
+          "h": 3
+        }
+      },
+      {
+        "id": "products-1",
+        "type": "top-products",
+        "title": "Top produits",
+        "position": {
+          "x": 6,
+          "y": 2,
+          "w": 6,
+          "h": 3
         }
       }
     ]
@@ -470,7 +491,7 @@ Body :
         "x": 0,
         "y": 0,
         "w": 6,
-        "h": 2
+        "h": 3
       }
     }
   ]
@@ -497,7 +518,7 @@ Réponse 200 :
           "x": 0,
           "y": 0,
           "w": 6,
-          "h": 2
+          "h": 3
         }
       }
     ]
@@ -513,6 +534,123 @@ Erreurs possibles :
 | 401    | Non authentifié                  |
 | 403    | Compte démo : sauvegarde refusée |
 | 429    | Rate limit dépassé               |
+
+---
+
+---
+
+## Export CSV
+
+### `GET /api/export/:type`
+
+Exporte les données de la session courante au format CSV.
+
+- **Authentification** : requise
+- **Rate limit** : global (300 req/min/IP)
+
+Paramètre de route :
+
+| Paramètre | Type   | Valeurs acceptées                 |
+| --------- | ------ | --------------------------------- |
+| type      | string | `orders`, `products`, `customers` |
+
+Comportement :
+
+- retourne un fichier CSV avec BOM UTF-8 ;
+- séparateur : `;` ;
+- fin de ligne : `\r\n` ;
+- nom du fichier : `{type}-{YYYY-MM-DD}.csv` ;
+- les cellules contenant `;`, `"`, `\n` ou `\r` sont échappées entre guillemets ;
+- les guillemets internes sont doublés (`""`) ;
+- les montants sont formatés en décimales (ex : `150.50`) ;
+- les dates sont formatées en UTC (ex : `2026-03-10 14:30:00 UTC`) ;
+- si une date source est invalide, la valeur brute est conservée.
+
+Headers de réponse :
+
+| Header              | Valeur                                     |
+| ------------------- | ------------------------------------------ |
+| Content-Type        | `text/csv; charset=utf-8`                  |
+| Content-Disposition | `attachment; filename="{type}-{date}.csv"` |
+
+Réponse 200 : corps binaire CSV.
+
+Erreurs possibles :
+
+| Status | Description                |
+| ------ | -------------------------- |
+| 400    | Type d'export non supporté |
+| 401    | Non authentifié            |
+
+### Colonnes par type
+
+**orders** (11 colonnes) :
+
+| Colonne            | Source              | Format      |
+| ------------------ | ------------------- | ----------- |
+| Order Number       | `orderNumber`       | entier      |
+| Customer           | `customerName`      | texte       |
+| Email              | `email`             | texte       |
+| Total              | `totalPriceCents`   | décimal (€) |
+| Currency           | `currency`          | texte       |
+| Financial Status   | `financialStatus`   | texte       |
+| Fulfillment Status | `fulfillmentStatus` | texte       |
+| Items              | `lineItems.length`  | entier      |
+| City               | `shippingCity`      | texte       |
+| Country            | `shippingCountry`   | texte       |
+| Date               | `createdAt`         | UTC formaté |
+
+**products** (6 colonnes) :
+
+| Colonne         | Source            | Format      |
+| --------------- | ----------------- | ----------- |
+| Title           | `title`           | texte       |
+| Vendor          | `vendor`          | texte       |
+| Type            | `productType`     | texte       |
+| Variants        | `variants.length` | entier      |
+| Total Inventory | `totalInventory`  | entier      |
+| Created         | `createdAt`       | UTC formaté |
+
+**customers** (9 colonnes) :
+
+| Colonne     | Source            | Format      |
+| ----------- | ----------------- | ----------- |
+| First Name  | `firstName`       | texte       |
+| Last Name   | `lastName`        | texte       |
+| Email       | `email`           | texte       |
+| Orders      | `ordersCount`     | entier      |
+| Total Spent | `totalSpentCents` | décimal (€) |
+| Segment     | `segment`         | texte       |
+| City        | `city`            | texte       |
+| Country     | `country`         | texte       |
+| Created     | `createdAt`       | UTC formaté |
+
+Exemple cURL export
+Où le mettre : dans la section "Test avec cURL", après le bloc "Get dashboard layout" et avant le bloc "Save dashboard layout".
+
+### Export CSV orders
+
+```bash
+curl http://localhost:3000/api/export/orders \
+  -b cookies.txt \
+  -o orders.csv
+```
+
+### Export CSV products
+
+```bash
+curl http://localhost:3000/api/export/products \
+  -b cookies.txt \
+  -o products.csv
+```
+
+### Export CSV customers
+
+```bash
+curl http://localhost:3000/api/export/customers \
+  -b cookies.txt \
+  -o customers.csv
+```
 
 ---
 
@@ -651,8 +789,10 @@ interface ApiResponse<T> {
 interface ApiErrorResponse {
   statusCode: number;
   message: string | string[];
-  error?: string;
-  timestamp?: string;
+  error: string;
+  timestamp: string;
+  path: string;
+  requestId?: string;
 }
 ```
 
