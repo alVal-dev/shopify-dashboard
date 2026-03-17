@@ -13,6 +13,11 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  app.enableCors({
+    origin: ['https://shopify-dashboard-web.onrender.com'],
+    credentials: true,
+  });
+
   // Trust proxy : nécessaire pour que le throttler identifie la vraie IP client
   // derrière un reverse proxy (Render, Cloudflare, etc.)
   const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
