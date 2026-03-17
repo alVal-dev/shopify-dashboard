@@ -92,7 +92,7 @@ export function useSSE(options: UseSseOptions = {}) {
     clearReconnectTimer();
     closeEventSource();
 
-    const source = new EventSource(url);
+    const source = new EventSource(url, { withCredentials: true });
     eventSource = source;
 
     attachTypedListeners(source);
