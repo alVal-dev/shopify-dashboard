@@ -4,7 +4,7 @@ Dashboard analytics connecté à une boutique Shopify fictive. Projet portfolio 
 
 ![CI](https://github.com/USER/shopify-dashboard/actions/workflows/ci.yml/badge.svg)
 
-> 🔗 **[Démo en ligne](https://shopify-dashboard.onrender.com)** — cliquer "Explorer la démo" ou utiliser `john@example.com` / `password123`
+> 🔗 **[Démo en ligne](https://shopify-dashboard-web.onrender.com/)** — cliquer "Explorer la démo" ou utiliser `john@example.com` / `password123`
 
 <!-- TODO: Ajouter screenshot ou GIF du dashboard ici -->
 
