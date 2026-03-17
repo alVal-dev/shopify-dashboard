@@ -22,11 +22,33 @@ describe('CustomersGenerator', () => {
       expect(customers).toHaveLength(0);
     });
 
+    it('returns empty array if count is negative', () => {
+      const customers = generator.generateBatch({ count: -4 });
+      expect(customers).toHaveLength(0);
+    });
+
     it('returns customers sorted by createdAt oldest first', () => {
       const customers = generator.generateBatch({ count: 20 });
 
       for (let i = 1; i < customers.length; i++) {
         expect(customers[i - 1]!.createdAt <= customers[i]!.createdAt).toBe(true);
+      }
+    });
+
+    it('keeps createdAt within the requested daysBack window', () => {
+      const before = new Date();
+      const daysBack = 14;
+
+      const customers = generator.generateBatch({ count: 20, daysBack });
+
+      const after = new Date();
+      const min = before.getTime() - daysBack * 24 * 60 * 60 * 1000;
+      const max = after.getTime();
+
+      for (const customer of customers) {
+        const createdAt = new Date(customer.createdAt).getTime();
+        expect(createdAt).toBeGreaterThanOrEqual(min);
+        expect(createdAt).toBeLessThanOrEqual(max);
       }
     });
   });
@@ -111,6 +133,15 @@ describe('CustomersGenerator', () => {
 
       for (const customer of customers) {
         expect(customer.city.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('normalizes email local part to lowercase ASCII letters', () => {
+      const customers = generator.generateBatch({ count: 100 });
+
+      for (const customer of customers) {
+        const localPart = customer.email.split('@')[0]!;
+        expect(localPart).toMatch(/^[a-z.0-9]+$/);
       }
     });
   });

@@ -106,6 +106,16 @@ describe('OrdersGenerator', () => {
       expect(orders).toHaveLength(0);
     });
 
+    it('returns empty array if count is negative', () => {
+      const orders = ordersGenerator.generateBatch({
+        products,
+        customers,
+        count: -5,
+      });
+
+      expect(orders).toHaveLength(0);
+    });
+
     it('assigns sequential order numbers in chronological order', () => {
       const orders = ordersGenerator.generateBatch({
         products,
@@ -133,6 +143,54 @@ describe('OrdersGenerator', () => {
       for (let i = 1; i < orders.length; i++) {
         expect(orders[i - 1]!.createdAt >= orders[i]!.createdAt).toBe(true);
       }
+    });
+
+    it('uses custom currency for generated orders', () => {
+      const orders = ordersGenerator.generateBatch({
+        products,
+        customers,
+        count: 10,
+        currency: 'USD',
+      });
+
+      for (const order of orders) {
+        expect(order.currency).toBe('USD');
+      }
+    });
+
+    it('keeps generated dates within the requested daysBack window', () => {
+      const before = new Date();
+      const daysBack = 10;
+
+      const orders = ordersGenerator.generateBatch({
+        products,
+        customers,
+        count: 20,
+        daysBack,
+      });
+
+      const after = new Date();
+      const min = before.getTime() - daysBack * 24 * 60 * 60 * 1000;
+      const max = after.getTime();
+
+      for (const order of orders) {
+        const createdAt = new Date(order.createdAt).getTime();
+        expect(createdAt).toBeGreaterThanOrEqual(min);
+        expect(createdAt).toBeLessThanOrEqual(max);
+      }
+    });
+
+    it('throws when available stock is insufficient to generate the requested number of orders', () => {
+      const scarceProducts = [makeProduct(1)];
+      const oneCustomer = [makeCustomer()];
+
+      expect(() =>
+        ordersGenerator.generateBatch({
+          products: scarceProducts,
+          customers: oneCustomer,
+          count: 20,
+        }),
+      ).toThrow('unable to generate');
     });
   });
 
@@ -210,6 +268,83 @@ describe('OrdersGenerator', () => {
         expect(li.quantity).toBeGreaterThan(0);
       }
     });
+
+    it('does not duplicate the same variant within a single order', () => {
+      const products = [
+        {
+          ...makeProduct(100),
+          variants: [
+            {
+              id: 'variant-1',
+              title: 'M',
+              priceCents: 3000,
+              sku: 'SKU-1',
+              inventoryQuantity: 100,
+            },
+            {
+              id: 'variant-2',
+              title: 'L',
+              priceCents: 3200,
+              sku: 'SKU-2',
+              inventoryQuantity: 100,
+            },
+          ],
+          totalInventory: 200,
+        },
+      ];
+      const customers = [makeCustomer()];
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).not.toBeNull();
+
+      const variantIds = order!.lineItems.map((li) => li.variantId);
+      expect(new Set(variantIds).size).toBe(variantIds.length);
+    });
+
+    it('falls back to a French city when customer city is empty', () => {
+      const products = [makeProduct(100)];
+      const customers = [makeCustomer({ city: '' })];
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).not.toBeNull();
+      expect(order!.shippingCity).toBeTruthy();
+      expect(order!.shippingCity).not.toBe('');
+    });
+
+    it('returns null when no sellable line item can be built', () => {
+      const products = [makeProduct(0)];
+      const customers = [makeCustomer()];
+
+      const pickFinancialStatusSpy = jest
+        .spyOn(
+          ordersGenerator as unknown as { pickFinancialStatus: () => string },
+          'pickFinancialStatus',
+        )
+        .mockReturnValue('paid');
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).toBeNull();
+
+      pickFinancialStatusSpy.mockRestore();
+    });
   });
 
   // ─── Stock management ──────────────────────────────────────
@@ -226,7 +361,6 @@ describe('OrdersGenerator', () => {
         count: 30,
       });
 
-      // Calculate expected stock decrease from paid/pending orders
       let soldUnits = 0;
       for (const order of orders) {
         if (order.financialStatus === 'paid' || order.financialStatus === 'pending') {
@@ -254,6 +388,58 @@ describe('OrdersGenerator', () => {
       for (const variant of products[0]!.variants) {
         expect(variant.inventoryQuantity).toBeGreaterThanOrEqual(0);
       }
+    });
+
+    it('keeps stock unchanged for refunded orders', () => {
+      const products = [makeProduct(100)];
+      const customers = [makeCustomer()];
+
+      const pickFinancialStatusSpy = jest
+        .spyOn(
+          ordersGenerator as unknown as { pickFinancialStatus: () => string },
+          'pickFinancialStatus',
+        )
+        .mockReturnValue('refunded');
+
+      const initialInventory = products[0]!.totalInventory;
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).not.toBeNull();
+      expect(products[0]!.totalInventory).toBe(initialInventory);
+
+      pickFinancialStatusSpy.mockRestore();
+    });
+
+    it('keeps stock unchanged for cancelled orders', () => {
+      const products = [makeProduct(100)];
+      const customers = [makeCustomer()];
+
+      const pickFinancialStatusSpy = jest
+        .spyOn(
+          ordersGenerator as unknown as { pickFinancialStatus: () => string },
+          'pickFinancialStatus',
+        )
+        .mockReturnValue('cancelled');
+
+      const initialInventory = products[0]!.totalInventory;
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).not.toBeNull();
+      expect(products[0]!.totalInventory).toBe(initialInventory);
+
+      pickFinancialStatusSpy.mockRestore();
     });
   });
 
@@ -296,6 +482,31 @@ describe('OrdersGenerator', () => {
       expectedSpent = Math.max(0, expectedSpent);
 
       expect(customers[0]!.totalSpentCents).toBe(expectedSpent);
+    });
+
+    it('does not update customer stats for cancelled orders', () => {
+      const products = [makeProduct(100)];
+      const customers = [makeCustomer()];
+
+      const pickFinancialStatusSpy = jest
+        .spyOn(
+          ordersGenerator as unknown as { pickFinancialStatus: () => string },
+          'pickFinancialStatus',
+        )
+        .mockReturnValue('cancelled');
+
+      const order = ordersGenerator.generateOne({
+        products,
+        customers,
+        currency: 'EUR',
+        orderNumber: 1001,
+      });
+
+      expect(order).not.toBeNull();
+      expect(customers[0]!.ordersCount).toBe(0);
+      expect(customers[0]!.totalSpentCents).toBe(0);
+
+      pickFinancialStatusSpy.mockRestore();
     });
   });
 
