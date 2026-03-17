@@ -13,7 +13,8 @@ export interface UseSseOptions {
 
 type SseEventListener = (event: ParsedSseEvent) => void;
 
-const DEFAULT_SSE_URL = '/api/sse/events';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const DEFAULT_SSE_URL = `${API_BASE_URL}/sse/events`;
 const DEFAULT_EXPECTED_HEARTBEAT_MS = 30_000;
 const DEFAULT_WATCHDOG_GRACE_MS = 10_000;
 const DEFAULT_RECONNECT_BASE_DELAY_MS = 1_000;
