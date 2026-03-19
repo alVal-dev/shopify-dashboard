@@ -2,11 +2,11 @@
 
 Dashboard analytics connecté à une boutique Shopify fictive. Projet portfolio full-stack démontrant des interactions DOM avancées et une architecture de production.
 
-![CI](https://github.com/USER/shopify-dashboard/actions/workflows/ci.yml/badge.svg)
-
 > 🔗 **[Démo en ligne](https://shopify-dashboard-web.onrender.com/)** — cliquer "Explorer la démo" ou utiliser `john@example.com` / `password123`
 
-<!-- TODO: Ajouter screenshot ou GIF du dashboard ici -->
+<p align="center">
+  <img src="./docs/assets/demo.gif" width="800" alt="Demo du Dashboard">
+</p>
 
 ## Ce que ce projet démontre
 
@@ -35,45 +35,63 @@ L'objectif était d'explorer une démarche de développement assisté où le dé
 
 ## Lancer en local
 
+# 1. Installer les dépendances
+
 ```bash
 pnpm install
+```
+
+# 2. Lancer la base de données
+
+```bash
 pnpm docker:up
-cd apps/api && DATABASE_URL="postgresql://dashboard:dashboard_dev_password@localhost:5432/shopify_dashboard" npx prisma migrate deploy && cd ../..
-cd apps/api && DATABASE_URL="postgresql://dashboard:dashboard_dev_password@localhost:5432/shopify_dashboard" npx tsx prisma/seed.ts && cd ../..
+```
+
+# 3. Migrer et populer la base de données
+
+```bash
+cd apps/api
+export DATABASE_URL="postgresql://dashboard:dashboard_dev_password@localhost:5432/shopify_dashboard"
+npx prisma migrate deploy
+npx tsx prisma/seed.ts
+cd ../..
+```
+
+# 4. Lancer les serveurs de développement
+
+```bash
 pnpm dev
 ```
 
-Ouvrir http://localhost:5173.
+Ouvrir [http://localhost:5173](http://localhost:5173)
 
-Tests
+## Tests
 
-# Unitaires (backend + frontend)
+### Unitaires (backend + frontend)
 
-```
+```bash
 pnpm test
 ```
 
-# Intégration backend (Docker requis)
+Intégration backend (Docker requis)
 
-```
+```Bash
 pnpm -C apps/api exec jest -c jest.integration.config.cjs --runInBand src/__tests__
 ```
 
-# E2E (serveurs dev requis)
+E2E (serveurs dev requis)
 
-```
+```Bash
 pnpm test:e2e
 ```
 
-Détails : docs/testing.md
+Détails des stratégies de test dans docs/testing.md
 
-Documentation
+## Documentation
 
-```
-Architecture
-API
-Sécurité
-Modèle de données
-Tests
-ADR
-```
+- 📐 [Architecture](./docs/architecture.md)
+- 🔌 [API](./docs/api.md)
+- 🔒 [Sécurité](./docs/security.md)
+- 🗄️ [Modèle de données](./docs/data-model.md)
+- 🧪 [Stratégie de Tests](./docs/testing.md)
+- 📝 [ADR (Architecture Decision Records)](./docs/adr/)
